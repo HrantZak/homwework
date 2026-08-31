@@ -9,7 +9,6 @@ struct TrackerView: View {
     @State private var focusSeconds = 25 * 60
     @State private var focusing = false
     @State private var nextGrade = 10
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var average: Double {
         guard !store.grades.isEmpty else { return 0 }
@@ -90,7 +89,15 @@ struct TrackerView: View {
                 .sheet(isPresented: $addExam) { AddExamView() }
                 .sheet(isPresented: $addNote) { AddNoteView() }
                 .sheet(isPresented: $addAttendance) { AddAttendanceView() }
-                .onReceive(timer) { _ in if focusing && focusSeconds > 0 { focusSeconds -= 1 } else if focusSeconds == 0 { focusing = false } }
+                .task(id: focusing) {
+                    guard focusing else { return }
+                    while !Task.isCancelled && focusSeconds > 0 {
+                        try? await Task.sleep(for: .seconds(1))
+                        guard !Task.isCancelled && focusing else { return }
+                        focusSeconds -= 1
+                    }
+                    if focusSeconds == 0 { focusing = false }
+                }
         }
     }
     private func stat(_ title: String, _ value: String, _ icon: String, _ color: Color) -> some View { SoftCard { VStack(alignment: .leading, spacing: 10) { Image(systemName: icon).foregroundStyle(color); Text(value).font(.title.bold()); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }

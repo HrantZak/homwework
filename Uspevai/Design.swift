@@ -13,20 +13,19 @@ struct SoftCard<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         content.padding(18)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 25, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 25, style: .continuous).stroke(LinearGradient(colors: [.white.opacity(0.65), AppTheme.violet.opacity(0.12), .clear], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1) }
-            .shadow(color: AppTheme.violet.opacity(0.08), radius: 22, y: 10)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 25, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 25, style: .continuous).fill(LinearGradient(colors: [.white.opacity(0.10), AppTheme.violet.opacity(0.025), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)).allowsHitTesting(false) }
+            .overlay { RoundedRectangle(cornerRadius: 25, style: .continuous).stroke(.primary.opacity(0.055), lineWidth: 1) }
+            .shadow(color: .black.opacity(0.045), radius: 9, y: 4)
     }
 }
 
 struct AnimatedAppBackground: View {
-    @State private var moving = false
     var body: some View {
         ZStack {
             AppTheme.background
-            Circle().fill(AppTheme.violet.opacity(0.13)).blur(radius: 50).frame(width: 260).offset(x: moving ? 150 : -150, y: moving ? -300 : -180)
-            Circle().fill(AppTheme.mint.opacity(0.10)).blur(radius: 55).frame(width: 240).offset(x: moving ? -130 : 140, y: moving ? 330 : 220)
-        }.ignoresSafeArea().onAppear { withAnimation(.easeInOut(duration: 8).repeatForever(autoreverses: true)) { moving.toggle() } }
+            LinearGradient(colors: [AppTheme.violet.opacity(0.07), .clear, AppTheme.mint.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }.ignoresSafeArea()
     }
 }
 

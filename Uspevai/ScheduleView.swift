@@ -85,6 +85,6 @@ struct LessonEditor: View {
                 TextField("Начало", text: $store.lessons[index].startsAt).keyboardType(.numbersAndPunctuation)
                 TextField("Конец", text: $store.lessons[index].endsAt).keyboardType(.numbersAndPunctuation)
             }
-        }.navigationTitle("Урок").navigationBarTitleDisplayMode(.inline)
+        }.navigationTitle("Урок").navigationBarTitleDisplayMode(.inline).onDisappear { store.refreshNotifications() }
     }
 }

@@ -8,7 +8,6 @@ struct StudentCenterView: View {
     @State private var focusLeft = 0
     @State private var focusing = false
     @State private var showAllTools = false
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var average: Double { weightedAverage(store.grades) }
     private var homeworkProgress: Double { store.homework.isEmpty ? 0 : Double(store.homework.filter(\.isDone).count) / Double(store.homework.count) }
@@ -35,7 +34,15 @@ struct StudentCenterView: View {
                 }.padding()
             }.background { AnimatedAppBackground() }.navigationTitle("Центр ученика")
                 .sheet(isPresented: $showAllTools) { AllToolsView() }
-                .onReceive(timer) { _ in if focusing && focusLeft > 0 { focusLeft -= 1 } else if focusLeft == 0 { focusing = false } }
+                .task(id: focusing) {
+                    guard focusing else { return }
+                    while !Task.isCancelled && focusLeft > 0 {
+                        try? await Task.sleep(for: .seconds(1))
+                        guard !Task.isCancelled && focusing else { return }
+                        focusLeft -= 1
+                    }
+                    if focusLeft == 0 { focusing = false }
+                }
         }
     }
 

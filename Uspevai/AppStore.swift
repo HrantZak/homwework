@@ -3,7 +3,7 @@ import UserNotifications
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var lessons: [Lesson] { didSet { save(); scheduleNotifications() } }
+    @Published var lessons: [Lesson] { didSet { save() } }
     @Published var homework: [Homework] { didSet { save() } }
     @Published var grades: [Grade] { didSet { save() } }
     @Published var attendance: [Attendance] { didSet { save() } }
@@ -46,7 +46,10 @@ final class AppStore: ObservableObject {
     func replaceLessons(_ imported: [Lesson]) {
         guard !imported.isEmpty else { return }
         lessons = imported.sorted { ($0.weekday, $0.order) < ($1.weekday, $1.order) }
+        scheduleNotifications()
     }
+
+    func refreshNotifications() { scheduleNotifications() }
 
     private func save() {
         if let data = try? encoder.encode(lessons) { defaults.set(data, forKey: "lessons") }

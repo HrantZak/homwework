@@ -51,7 +51,7 @@ struct GradeCalendar: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(selected ? AppTheme.violet : weekend ? Color.gray.opacity(0.13) : graded ? AppTheme.mint.opacity(0.16) : Color.primary.opacity(0.035))
-                if graded && !selected { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.mint.opacity(0.55), lineWidth: 1).shadow(color: AppTheme.mint.opacity(0.5), radius: 5) }
+                if graded && !selected { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.mint.opacity(0.65), lineWidth: 1.5) }
                 if today && !selected { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.violet, lineWidth: 1.5) }
                 VStack(spacing: 2) {
                     Text("\(calendar.component(.day, from: date))").font(.subheadline.bold())
