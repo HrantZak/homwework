@@ -9,6 +9,7 @@ final class AppStore: ObservableObject {
     @Published var attendance: [Attendance] { didSet { save() } }
     @Published var exams: [Exam] { didSet { save() } }
     @Published var notes: [SchoolNote] { didSet { save() } }
+    @Published var termEnd: Date { didSet { defaults.set(termEnd, forKey: "termEnd") } }
     @Published var remindersEnabled: Bool { didSet { defaults.set(remindersEnabled, forKey: "reminders"); scheduleNotifications() } }
     @Published var darkMode: Bool { didSet { defaults.set(darkMode, forKey: "darkMode") } }
 
@@ -23,6 +24,7 @@ final class AppStore: ObservableObject {
         attendance = Self.load([Attendance].self, key: "attendance") ?? []
         exams = Self.load([Exam].self, key: "exams") ?? []
         notes = Self.load([SchoolNote].self, key: "notes") ?? []
+        termEnd = defaults.object(forKey: "termEnd") as? Date ?? Calendar.current.date(from: DateComponents(year: 2026, month: 12, day: 26))!
         remindersEnabled = defaults.object(forKey: "reminders") as? Bool ?? true
         darkMode = defaults.bool(forKey: "darkMode")
     }

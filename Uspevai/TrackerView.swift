@@ -8,6 +8,7 @@ struct TrackerView: View {
     @State private var addAttendance = false
     @State private var focusSeconds = 25 * 60
     @State private var focusing = false
+    @State private var nextGrade = 5
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var average: Double {
@@ -26,6 +27,37 @@ struct TrackerView: View {
                     HStack(spacing: 12) {
                         stat("Средний балл", average == 0 ? "—" : String(format: "%.1f", average), "star.fill", AppTheme.coral)
                         stat("Посещение", "\(attendanceRate)%", "person.fill.checkmark", AppTheme.mint)
+                    }
+                    SoftCard {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("До конца четверти").font(.headline)
+                                Text(store.termEnd.formatted(date: .long, time: .omitted)).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("\(max(0, Calendar.current.dateComponents([.day], from: Date(), to: store.termEnd).day ?? 0))").font(.largeTitle.bold()).foregroundStyle(AppTheme.violet)
+                            Text("дн.").foregroundStyle(.secondary)
+                        }
+                    }
+                    if !store.grades.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack { Text("Прогноз за четверть").font(.title3.bold()); Spacer() }
+                            Picker("Следующая оценка", selection: $nextGrade) { ForEach(1...5, id: \.self) { Text("Если \($0)").tag($0) } }.pickerStyle(.segmented)
+                            ForEach(subjects, id: \.name) { item in
+                                SoftCard {
+                                    HStack(spacing: 14) {
+                                        ZStack { Circle().fill(color(for: item.final).opacity(0.14)); Text("\(item.final)").font(.title.bold()).foregroundStyle(color(for: item.final)) }.frame(width: 54, height: 54)
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(item.name).font(.headline)
+                                            Text("Средний: \(String(format: "%.2f", item.average)) • оценок: \(item.count)").font(.caption).foregroundStyle(.secondary)
+                                            Text("Если следующая \(nextGrade): средний \(String(format: "%.2f", item.nextAverage)), итог ≈ \(item.nextFinal)").font(.caption.bold()).foregroundStyle(AppTheme.violet)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            Text("Прогноз округляется по обычному правилу. Учитель может учитывать контрольные с другим весом.").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     SoftCard {
                         VStack(spacing: 12) {
@@ -59,6 +91,17 @@ struct TrackerView: View {
         }
     }
     private func stat(_ title: String, _ value: String, _ icon: String, _ color: Color) -> some View { SoftCard { VStack(alignment: .leading, spacing: 10) { Image(systemName: icon).foregroundStyle(color); Text(value).font(.title.bold()); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }
+    private var subjects: [(name: String, average: Double, count: Int, final: Int, nextAverage: Double, nextFinal: Int)] {
+        Dictionary(grouping: store.grades, by: \.subject).map { name, grades in
+            let sum = grades.map(\.value).reduce(0, +)
+            let avg = Double(sum) / Double(grades.count)
+            let next = Double(sum + nextGrade) / Double(grades.count + 1)
+            return (name: name, average: avg, count: grades.count,
+                    final: min(5, max(1, Int(avg.rounded()))), nextAverage: next,
+                    nextFinal: min(5, max(1, Int(next.rounded()))))
+        }.sorted { $0.name < $1.name }
+    }
+    private func color(for grade: Int) -> Color { grade >= 4 ? AppTheme.mint : grade == 3 ? .orange : AppTheme.coral }
     private func sectionTitle(_ title: String, action: @escaping () -> Void) -> some View { HStack { Text(title).font(.title3.bold()); Spacer(); Button(action: action) { Image(systemName: "plus.circle.fill").font(.title2) } } }
     private func emptyCard(_ text: String, _ icon: String) -> some View { SoftCard { Label(text, systemImage: icon).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) } }
 }

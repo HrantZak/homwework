@@ -19,7 +19,7 @@ struct Homework: Identifiable, Codable, Hashable {
 }
 
 struct Grade: Identifiable, Codable, Hashable {
-    var id = UUID(); var subject: String; var value: Int; var date = Date(); var note = ""
+    var id = UUID(); var subject: String; var value: Int; var date = Date(); var note = ""; var lessonID: UUID? = nil
 }
 
 struct Attendance: Identifiable, Codable, Hashable {
