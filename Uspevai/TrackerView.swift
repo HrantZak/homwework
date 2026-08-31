@@ -82,7 +82,10 @@ struct TrackerView: View {
                     }
                 }.padding()
             }.background(AppTheme.background).navigationTitle("Мой прогресс")
-                .toolbar { Menu { Button("Оценку", systemImage: "star") { addGrade = true }; Button("Посещение", systemImage: "person.fill.checkmark") { addAttendance = true }; Button("Экзамен", systemImage: "calendar") { addExam = true }; Button("Заметку", systemImage: "note.text") { addNote = true } } label: { Image(systemName: "plus") } }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") } }
+                    ToolbarItem(placement: .topBarTrailing) { Menu { Button("Оценку", systemImage: "star") { addGrade = true }; Button("Посещение", systemImage: "person.fill.checkmark") { addAttendance = true }; Button("Экзамен", systemImage: "calendar") { addExam = true }; Button("Заметку", systemImage: "note.text") { addNote = true } } label: { Image(systemName: "plus") } }
+                }
                 .sheet(isPresented: $addGrade) { AddGradeView() }
                 .sheet(isPresented: $addExam) { AddExamView() }
                 .sheet(isPresented: $addNote) { AddNoteView() }
@@ -114,8 +117,8 @@ struct AddAttendanceView: View {
 
 struct AddGradeView: View {
     @EnvironmentObject var store: AppStore; @Environment(\.dismiss) var dismiss
-    @State var subject = ""; @State var value = 5; @State var note = ""
-    var body: some View { NavigationStack { Form { TextField("Предмет", text: $subject); Picker("Оценка", selection: $value) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }; TextField("Комментарий", text: $note) }.navigationTitle("Новая оценка").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Добавить") { store.grades.append(Grade(subject: subject, value: value, note: note)); dismiss() }.disabled(subject.isEmpty) } } } }
+    @State var subject = ""; @State var value = 5; @State var note = ""; @State var category = "Ответ на уроке"; @State var weight = 1
+    var body: some View { NavigationStack { Form { TextField("Предмет", text: $subject); Picker("Оценка", selection: $value) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }; Picker("Тип работы", selection: $category) { ForEach(["Ответ на уроке","Домашняя работа","Самостоятельная","Контрольная","Экзамен"], id: \.self) { Text($0).tag($0) } }; Picker("Вес", selection: $weight) { Text("Обычная ×1").tag(1); Text("Важная ×2").tag(2); Text("Контрольная ×3").tag(3) }; TextField("Комментарий", text: $note) }.navigationTitle("Новая оценка").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Добавить") { store.grades.append(Grade(subject: subject, value: value, note: note, category: category, weight: weight)); dismiss() }.disabled(subject.isEmpty) } } } }
 }
 
 struct AddExamView: View {
