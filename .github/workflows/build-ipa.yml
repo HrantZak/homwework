@@ -2,11 +2,14 @@ name: Build Uspevai IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     tags: ['v*']
+concurrency:
+  group: ipa-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 25
     env:
       CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
       P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -15,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate
       - name: Build unsigned iPhone app
