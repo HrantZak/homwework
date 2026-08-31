@@ -81,7 +81,7 @@ struct TrackerView: View {
                         SoftCard { VStack(alignment: .leading, spacing: 7) { HStack { Text(note.title).font(.headline); if note.isPinned { Image(systemName: "pin.fill").foregroundStyle(AppTheme.coral) } }; Text(note.text).foregroundStyle(.secondary).lineLimit(3) }.frame(maxWidth: .infinity, alignment: .leading) }
                     }
                 }.padding()
-            }.background(AppTheme.background).navigationTitle("Мой прогресс")
+            }.background { AnimatedAppBackground() }.navigationTitle("Мой прогресс")
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) { NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") } }
                     ToolbarItem(placement: .topBarTrailing) { Menu { Button("Оценку", systemImage: "star") { addGrade = true }; Button("Посещение", systemImage: "person.fill.checkmark") { addAttendance = true }; Button("Экзамен", systemImage: "calendar") { addExam = true }; Button("Заметку", systemImage: "note.text") { addNote = true } } label: { Image(systemName: "plus") } }

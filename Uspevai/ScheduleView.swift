@@ -11,11 +11,11 @@ struct ScheduleView: View {
         NavigationStack {
             VStack(spacing: 14) {
                 HStack {
-                    Button { selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)! } label: { Image(systemName: "chevron.left") }
+                    Button { withAnimation(.snappy) { selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)! } } label: { Image(systemName: "chevron.left") }.buttonStyle(ScalePressStyle())
                     DatePicker("Дата", selection: $selectedDate, displayedComponents: .date).labelsHidden().datePickerStyle(.compact)
-                    Button { selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)! } label: { Image(systemName: "chevron.right") }
+                    Button { withAnimation(.snappy) { selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate)! } } label: { Image(systemName: "chevron.right") }.buttonStyle(ScalePressStyle())
                 }.font(.title3.bold()).padding(.horizontal)
-                Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.headline).foregroundStyle(AppTheme.violet)
+                Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.headline).foregroundStyle(AppTheme.violet).contentTransition(.numericText()).id(selectedDate)
                 ScrollView {
                     LazyVStack(spacing: 13) {
                         ForEach(store.lessons.filter { $0.weekday == day }.sorted { $0.order < $1.order }) { lesson in
@@ -32,7 +32,7 @@ struct ScheduleView: View {
                         if store.lessons.filter({ $0.weekday == day }).isEmpty { ContentUnavailableView("В этот день уроков нет", systemImage: "calendar.badge.checkmark") }
                     }.padding()
                 }
-            }.background(AppTheme.background).navigationTitle("Расписание")
+            }.background { AnimatedAppBackground() }.navigationTitle("Расписание")
                 .toolbar { Button { showImport = true } label: { Label("Импорт", systemImage: "camera.viewfinder") } }
                 .sheet(isPresented: $showImport) { ImportScheduleView() }
                 .sheet(item: $gradingLesson) { lesson in AddLessonGradeView(lesson: lesson, date: selectedDate) }

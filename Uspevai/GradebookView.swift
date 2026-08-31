@@ -38,7 +38,7 @@ struct GradebookView: View {
                         legend
                     }
                 }.padding()
-            }.background(AppTheme.background).navigationTitle("Журнал оценок")
+            }.background { AnimatedAppBackground() }.navigationTitle("Журнал оценок")
                 .toolbar { Button { showAdd = true } label: { Label("Добавить", systemImage: "plus") } }
                 .sheet(isPresented: $showAdd) { AddGradeView() }
                 .sheet(item: $selectedGrade) { GradeDetailView(grade: $0) }
@@ -84,7 +84,7 @@ struct GradebookView: View {
         let grade = store.grades.first { $0.subject == subject && Calendar.current.isDate($0.date, inSameDayAs: date) }
         return Button { if let grade { selectedGrade = grade } } label: { ZStack {
             Rectangle().fill(shaded ? Color.primary.opacity(0.035) : Color(uiColor: .secondarySystemGroupedBackground))
-            if let grade { Text("\(grade.value)").font(.headline.bold()).foregroundStyle(.white).frame(width: 34, height: 34).background(gradeColor(grade.value), in: Circle()) }
+            if let grade { Text("\(grade.value)").font(.headline.bold()).foregroundStyle(.white).frame(width: 34, height: 34).background(gradeColor(grade.value), in: Circle()).contentTransition(.numericText()).symbolEffect(.bounce, value: grade.value) }
             else { Text("·").foregroundStyle(.tertiary) }
         }.frame(width: 58, height: 58).overlay(alignment: .leading) { Divider() } }.buttonStyle(.plain)
     }

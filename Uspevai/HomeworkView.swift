@@ -17,7 +17,7 @@ struct HomeworkView: View {
                         }.padding(.vertical, 6)
                     }.buttonStyle(.plain)
                 }.onDelete { store.homework.remove(atOffsets: $0) }
-            }.overlay { if store.homework.isEmpty { ContentUnavailableView("Заданий пока нет", systemImage: "checkmark.seal", description: Text("Добавь первое задание кнопкой +")) } }
+            }.scrollContentBackground(.hidden).background { AnimatedAppBackground() }.overlay { if store.homework.isEmpty { ContentUnavailableView("Заданий пока нет", systemImage: "checkmark.seal", description: Text("Добавь первое задание кнопкой +")) } }
                 .navigationTitle("Задания").toolbar { Button { showAdd = true } label: { Image(systemName: "plus") } }
                 .sheet(isPresented: $showAdd) { AddHomeworkView() }
         }

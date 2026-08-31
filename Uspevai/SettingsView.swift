@@ -12,7 +12,7 @@ struct SettingsView: View {
                     LabeledContent("Версия", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
                     LabeledContent("Сборка", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
                 }
-            }.navigationTitle("Настройки")
+            }.scrollContentBackground(.hidden).background { AnimatedAppBackground() }.navigationTitle("Настройки")
         }
     }
 }
