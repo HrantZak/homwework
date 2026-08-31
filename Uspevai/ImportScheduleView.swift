@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import Vision
+import UIKit
 
 struct ImportScheduleView: View {
     @EnvironmentObject var store: AppStore

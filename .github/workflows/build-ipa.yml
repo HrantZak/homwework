@@ -7,26 +7,32 @@ on:
 jobs:
   build:
     runs-on: macos-15
+    env:
+      CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      PROVISION_PROFILE_BASE64: ${{ secrets.APPLE_PROVISION_PROFILE_BASE64 }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate
+      - name: Build unsigned simulator preview
+        run: |
+          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -sdk iphonesimulator -configuration Release -derivedDataPath $RUNNER_TEMP/DerivedData CODE_SIGNING_ALLOWED=NO build
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphonesimulator/Uspevai.app" "$RUNNER_TEMP/Uspevai-Simulator.zip"
+      - name: Upload simulator preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: Uspevai-Simulator-${{ github.run_number }}
+          path: ${{ runner.temp }}/Uspevai-Simulator.zip
       - name: Import signing certificate
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          PROVISION_PROFILE_BASE64: ${{ secrets.APPLE_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        if: env.CERTIFICATE_BASE64 != '' && env.PROVISION_PROFILE_BASE64 != '' && env.P12_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/profile.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          if [ -z "$CERTIFICATE_BASE64" ] || [ -z "$PROVISION_PROFILE_BASE64" ]; then
-            echo "Apple signing secrets are empty. Add the four required repository secrets."
-            exit 1
-          fi
           printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
           printf '%s' "$PROVISION_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
           if ! openssl pkcs12 -in "$CERTIFICATE_PATH" -passin env:P12_PASSWORD -noout >/dev/null 2>&1; then
@@ -45,10 +51,13 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
       - name: Archive
+        if: env.CERTIFICATE_BASE64 != '' && env.PROVISION_PROFILE_BASE64 != '' && env.P12_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
         run: xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -configuration Release -archivePath $RUNNER_TEMP/Uspevai.xcarchive archive
       - name: Export IPA
+        if: env.CERTIFICATE_BASE64 != '' && env.PROVISION_PROFILE_BASE64 != '' && env.P12_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
         run: xcodebuild -exportArchive -archivePath $RUNNER_TEMP/Uspevai.xcarchive -exportPath $RUNNER_TEMP/export -exportOptionsPlist ExportOptions.plist
       - uses: actions/upload-artifact@v4
+        if: env.CERTIFICATE_BASE64 != '' && env.PROVISION_PROFILE_BASE64 != '' && env.P12_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
         with:
           name: Uspevai-IPA
           path: ${{ runner.temp }}/export/*.ipa
