@@ -1,7 +1,8 @@
-name: Build iPhone IPA
+name: Build Uspevai IPA
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
 jobs:
   build:
@@ -39,4 +40,3 @@ jobs:
         with:
           name: Uspevai-IPA
           path: ${{ runner.temp }}/export/*.ipa
-
