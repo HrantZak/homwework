@@ -23,8 +23,20 @@ jobs:
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/profile.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          if [ -z "$CERTIFICATE_BASE64" ] || [ -z "$PROVISION_PROFILE_BASE64" ]; then
+            echo "Apple signing secrets are empty. Add the four required repository secrets."
+            exit 1
+          fi
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          printf '%s' "$PROVISION_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
+          if ! openssl pkcs12 -in "$CERTIFICATE_PATH" -passin env:P12_PASSWORD -noout >/dev/null 2>&1; then
+            echo "Certificate is not a valid P12 file or APPLE_CERTIFICATE_PASSWORD is incorrect."
+            exit 1
+          fi
+          if [ ! -s "$PP_PATH" ]; then
+            echo "APPLE_PROVISION_PROFILE_BASE64 did not produce a valid file."
+            exit 1
+          fi
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH

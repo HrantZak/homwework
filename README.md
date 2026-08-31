@@ -1,6 +1,6 @@
 # Успевай
 
-Текущая версия: **1.0.1 (2)**.
+Текущая версия: **1.0.2 (3)**.
 
 Минималистичное приложение для iPhone: расписание, домашние задания, импорт фото и напоминания после уроков.
 
@@ -14,5 +14,14 @@
 ## IPA через GitHub
 
 Добавьте Secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`. Создайте тег вида `v1.0.1` или запустите workflow вручную. Готовый IPA появится в Artifacts.
+
+На Windows содержимое файлов для Secrets можно получить в PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\certificate.p12")) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\profile.mobileprovision")) | Set-Clipboard
+```
+
+Первая команда копирует сертификат, вторая — provisioning profile. В Secret нужно вставлять результат команды целиком, без кавычек и имени файла.
 
 Каждый новый релиз должен получать новый `MARKETING_VERSION` в `project.yml`; номер Release-сборки повышается автоматически.
