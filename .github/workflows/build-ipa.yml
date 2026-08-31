@@ -18,15 +18,19 @@ jobs:
         run: brew install xcodegen
       - name: Generate Xcode project
         run: xcodegen generate
-      - name: Build unsigned simulator preview
+      - name: Build unsigned iPhone app
         run: |
-          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -sdk iphonesimulator -configuration Release -derivedDataPath $RUNNER_TEMP/DerivedData CODE_SIGNING_ALLOWED=NO build
-          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphonesimulator/Uspevai.app" "$RUNNER_TEMP/Uspevai-Simulator.zip"
-      - name: Upload simulator preview
+          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -sdk iphoneos -configuration Release -derivedDataPath $RUNNER_TEMP/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          mkdir -p "$RUNNER_TEMP/UnsignedIPA/Payload"
+          cp -R "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Uspevai.app" "$RUNNER_TEMP/UnsignedIPA/Payload/"
+          cd "$RUNNER_TEMP/UnsignedIPA"
+          zip -qry "$RUNNER_TEMP/Uspevai-unsigned.ipa" Payload
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Uspevai-Simulator-${{ github.run_number }}
-          path: ${{ runner.temp }}/Uspevai-Simulator.zip
+          name: Uspevai-unsigned-IPA-${{ github.run_number }}
+          path: ${{ runner.temp }}/Uspevai-unsigned.ipa
+          if-no-files-found: error
       - name: Import signing certificate
         if: env.CERTIFICATE_BASE64 != '' && env.PROVISION_PROFILE_BASE64 != '' && env.P12_PASSWORD != '' && env.KEYCHAIN_PASSWORD != ''
         run: |
