@@ -1,5 +1,77 @@
 import SwiftUI
 
+struct GradeCalendar: View {
+    @Binding var displayedMonth: Date
+    @Binding var selectedDate: Date
+    let gradedDates: [Date]
+    private let calendar = Calendar.current
+    private let headers = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"]
+
+    private var monthStart: Date { calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth))! }
+    private var cells: [Date?] {
+        let count = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
+        let weekday = calendar.component(.weekday, from: monthStart)
+        let leading = (weekday + 5) % 7
+        return Array(repeating: nil, count: leading) + (0..<count).map { calendar.date(byAdding: .day, value: $0, to: monthStart) }
+    }
+
+    var body: some View {
+        SoftCard {
+            VStack(spacing: 14) {
+                HStack {
+                    Button { changeMonth(-1) } label: { Image(systemName: "chevron.left").frame(width: 38, height: 38).background(.primary.opacity(0.06), in: Circle()) }.buttonStyle(ScalePressStyle())
+                    Spacer()
+                    Text(displayedMonth.formatted(.dateTime.month(.wide).year())).font(.title3.bold()).contentTransition(.numericText())
+                    Spacer()
+                    Button { changeMonth(1) } label: { Image(systemName: "chevron.right").frame(width: 38, height: 38).background(.primary.opacity(0.06), in: Circle()) }.buttonStyle(ScalePressStyle())
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 8) {
+                    ForEach(Array(headers.enumerated()), id: \.offset) { index, header in
+                        Text(header).font(.system(size: 10, weight: .heavy)).foregroundStyle(index >= 5 ? .secondary.opacity(0.65) : AppTheme.violet)
+                    }
+                    ForEach(Array(cells.enumerated()), id: \.offset) { _, date in
+                        if let date { dayCell(date) } else { Color.clear.frame(height: 43) }
+                    }
+                }
+                HStack(spacing: 15) { Label("Есть оценка", systemImage: "circle.fill").foregroundStyle(AppTheme.mint); Label("Выходной", systemImage: "circle.fill").foregroundStyle(.gray.opacity(0.55)); Spacer() }.font(.caption2)
+            }
+        }
+    }
+
+    private func dayCell(_ date: Date) -> some View {
+        let weekday = calendar.component(.weekday, from: date)
+        let weekend = weekday == 1 || weekday == 7
+        let graded = gradedDates.contains { calendar.isDate($0, inSameDayAs: date) }
+        let selected = calendar.isDate(selectedDate, inSameDayAs: date)
+        let today = calendar.isDateInToday(date)
+        return Button {
+            guard !weekend else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedDate = date }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selected ? AppTheme.violet : weekend ? Color.gray.opacity(0.13) : graded ? AppTheme.mint.opacity(0.16) : Color.primary.opacity(0.035))
+                if graded && !selected { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.mint.opacity(0.55), lineWidth: 1).shadow(color: AppTheme.mint.opacity(0.5), radius: 5) }
+                if today && !selected { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.violet, lineWidth: 1.5) }
+                VStack(spacing: 2) {
+                    Text("\(calendar.component(.day, from: date))").font(.subheadline.bold())
+                    Circle().fill(graded ? (selected ? Color.white : AppTheme.mint) : Color.clear).frame(width: 4, height: 4)
+                }.foregroundStyle(selected ? .white : weekend ? .secondary.opacity(0.55) : .primary)
+            }.frame(height: 43)
+        }.buttonStyle(.plain).disabled(weekend).accessibilityLabel(date.formatted(date: .long, time: .omitted))
+    }
+
+    private func changeMonth(_ amount: Int) {
+        let nextMonth = calendar.date(byAdding: .month, value: amount, to: monthStart)!
+        let candidate = calendar.date(from: calendar.dateComponents([.year, .month], from: nextMonth))!
+        let weekday = calendar.component(.weekday, from: candidate)
+        withAnimation(.snappy) {
+            displayedMonth = nextMonth
+            selectedDate = (weekday == 1 || weekday == 7) ? calendar.date(byAdding: .day, value: weekday == 7 ? 2 : 1, to: candidate)! : candidate
+        }
+    }
+}
+
 struct GradebookView: View {
     @EnvironmentObject var store: AppStore
     @State private var showAdd = false
@@ -7,13 +79,16 @@ struct GradebookView: View {
     @State private var query = ""
     @State private var mode = 0
     @State private var selectedGrade: Grade?
+    @State private var selectedDate = Date()
+    @State private var displayedMonth = Date()
+    @State private var gradingLesson: Lesson?
 
     private var subjects: [String] {
         Array(Set(store.lessons.map(\.title) + store.grades.map(\.subject))).sorted()
     }
     private var dates: [Date] {
         let calendar = Calendar.current
-        return Array(Set(store.grades.filter { $0.date <= store.termEnd }.map { calendar.startOfDay(for: $0.date) })).sorted()
+        return Array(Set(store.grades.filter { $0.date <= store.termEnd && calendar.isDate($0.date, equalTo: displayedMonth, toGranularity: .month) }.map { calendar.startOfDay(for: $0.date) })).sorted()
     }
     private var visibleSubjects: [String] {
         let base = selectedSubject == "Все предметы" ? subjects : [selectedSubject]
@@ -24,6 +99,9 @@ struct GradebookView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
+                    PremiumTitle(eyebrow: "Учебный месяц", title: "Календарь оценок", icon: "calendar.badge.checkmark")
+                    GradeCalendar(displayedMonth: $displayedMonth, selectedDate: $selectedDate, gradedDates: store.grades.map(\.date))
+                    selectedDayCard
                     summary
                     Picker("Предмет", selection: $selectedSubject) {
                         Text("Все предметы").tag("Все предметы")
@@ -42,7 +120,34 @@ struct GradebookView: View {
                 .toolbar { Button { showAdd = true } label: { Label("Добавить", systemImage: "plus") } }
                 .sheet(isPresented: $showAdd) { AddGradeView() }
                 .sheet(item: $selectedGrade) { GradeDetailView(grade: $0) }
+                .sheet(item: $gradingLesson) { AddLessonGradeView(lesson: $0, date: selectedDate) }
                 .searchable(text: $query, prompt: "Найти предмет")
+        }
+    }
+
+    private var selectedDayCard: some View {
+        let weekday = Calendar.current.component(.weekday, from: selectedDate)
+        let lessons = store.lessons.filter { $0.weekday == weekday }.sorted { $0.order < $1.order }
+        return SoftCard {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) { Text("Расписание на день").font(.headline); Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.caption).foregroundStyle(.secondary) }
+                    Spacer(); Text("\(lessons.count) урока").font(.caption.bold()).foregroundStyle(AppTheme.violet).padding(.horizontal, 10).padding(.vertical, 6).background(AppTheme.violet.opacity(0.1), in: Capsule())
+                }
+                if lessons.isEmpty { Label("Уроков нет", systemImage: "moon.stars").foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8) }
+                ForEach(lessons) { lesson in
+                    HStack(spacing: 11) {
+                        Text("\(lesson.order)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) { Text(lesson.title).font(.subheadline.bold()).lineLimit(2); Text("\(lesson.startsAt)–\(lesson.endsAt)").font(.caption2).foregroundStyle(.secondary) }
+                        Spacer()
+                        Button { gradingLesson = lesson } label: {
+                            let grade = gradeFor(lesson)
+                            Text(grade.map(String.init) ?? "+").font(.headline.bold()).foregroundStyle(grade == nil ? AppTheme.violet : .white).frame(width: 43, height: 43).background(grade == nil ? AppTheme.violet.opacity(0.1) : gradeColor(grade!), in: RoundedRectangle(cornerRadius: 12)).overlay { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.violet.opacity(grade == nil ? 0.25 : 0), lineWidth: 1) }
+                        }.buttonStyle(ScalePressStyle())
+                    }
+                    if lesson.id != lessons.last?.id { Divider().padding(.leading, 33) }
+                }
+            }
         }
     }
 
@@ -111,6 +216,7 @@ struct GradebookView: View {
         let points = grades.map { $0.value * ($0.weight ?? 1) }.reduce(0,+)
         return totalWeight == 0 ? 0 : Double(points) / Double(totalWeight)
     }
+    private func gradeFor(_ lesson: Lesson) -> Int? { store.grades.first { $0.lessonID == lesson.id && Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }?.value }
 
     private func tableCell(_ text: String, width: CGFloat, header: Bool = false, shaded: Bool = false, strong: Bool = false) -> some View {
         Text(text).font(header || strong ? .caption.bold() : .caption).lineLimit(2).frame(width: width, height: header ? 48 : 58, alignment: width > 100 ? .leading : .center).padding(.horizontal, width > 100 ? 10 : 0)
