@@ -18,6 +18,22 @@ struct Homework: Identifiable, Codable, Hashable {
     var isDone = false
 }
 
+struct Grade: Identifiable, Codable, Hashable {
+    var id = UUID(); var subject: String; var value: Int; var date = Date(); var note = ""
+}
+
+struct Attendance: Identifiable, Codable, Hashable {
+    var id = UUID(); var subject: String; var date = Date(); var wasPresent = true
+}
+
+struct Exam: Identifiable, Codable, Hashable {
+    var id = UUID(); var title: String; var subject: String; var date: Date; var room = ""
+}
+
+struct SchoolNote: Identifiable, Codable, Hashable {
+    var id = UUID(); var title: String; var text: String; var createdAt = Date(); var isPinned = false
+}
+
 enum SeedData {
     static let times = [("09:00", "09:45"), ("09:55", "10:40"), ("10:50", "11:35"), ("11:45", "12:30")]
     static let titles: [[String]] = [
@@ -36,4 +52,3 @@ enum SeedData {
         }
     }
 }
-

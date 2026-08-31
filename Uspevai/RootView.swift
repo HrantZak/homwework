@@ -9,9 +9,9 @@ struct RootView: View {
             TodayView().tabItem { Label("Сегодня", systemImage: "sparkles") }.tag(0)
             ScheduleView().tabItem { Label("Расписание", systemImage: "calendar") }.tag(1)
             HomeworkView().tabItem { Label("Задания", systemImage: "checkmark.circle") }.tag(2)
-            SettingsView().tabItem { Label("Настройки", systemImage: "gearshape") }.tag(3)
+            TrackerView().tabItem { Label("Прогресс", systemImage: "chart.bar.fill") }.tag(3)
+            SettingsView().tabItem { Label("Ещё", systemImage: "ellipsis") }.tag(4)
         }.tint(AppTheme.violet)
          .task { await store.requestNotifications() }
     }
 }
-

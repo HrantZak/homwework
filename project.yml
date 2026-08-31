@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: 1.0.5
-    CURRENT_PROJECT_VERSION: 6
+    MARKETING_VERSION: 2.0.0
+    CURRENT_PROJECT_VERSION: 7
     SWIFT_VERSION: 5.10
 targets:
   Uspevai:
@@ -17,6 +17,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: am.hrant.uspevai
         INFOPLIST_FILE: Uspevai/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1"
     preBuildScripts:
