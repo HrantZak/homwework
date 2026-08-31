@@ -12,7 +12,7 @@ struct RootView: View {
                 ScheduleView().tabItem { Label("Расписание", systemImage: "calendar") }.tag(1)
                 GradebookView().tabItem { Label("Журнал", systemImage: "tablecells") }.tag(2)
                 HomeworkView().tabItem { Label("Задания", systemImage: "checkmark.circle") }.tag(3)
-                TrackerView().tabItem { Label("Прогресс", systemImage: "chart.bar.fill") }.tag(4)
+                StudentCenterView().tabItem { Label("Центр", systemImage: "square.grid.2x2.fill") }.tag(4)
             }.tint(AppTheme.violet).toolbarBackground(.ultraThinMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
                 .sensoryFeedback(.selection, trigger: selection)
             if showLaunch { LaunchView().transition(.opacity.combined(with: .scale(scale: 1.08))) }
