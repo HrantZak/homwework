@@ -8,7 +8,7 @@ struct TrackerView: View {
     @State private var addAttendance = false
     @State private var focusSeconds = 25 * 60
     @State private var focusing = false
-    @State private var nextGrade = 5
+    @State private var nextGrade = 10
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var average: Double {
@@ -42,7 +42,7 @@ struct TrackerView: View {
                     if !store.grades.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack { Text("Прогноз за четверть").font(.title3.bold()); Spacer() }
-                            Picker("Следующая оценка", selection: $nextGrade) { ForEach(1...5, id: \.self) { Text("Если \($0)").tag($0) } }.pickerStyle(.segmented)
+                            Picker("Следующая оценка", selection: $nextGrade) { ForEach(1...10, id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.menu)
                             ForEach(subjects, id: \.name) { item in
                                 SoftCard {
                                     HStack(spacing: 14) {
@@ -74,7 +74,7 @@ struct TrackerView: View {
                     sectionTitle("Последние оценки", action: { addGrade = true })
                     if store.grades.isEmpty { emptyCard("Добавь первую оценку", "star.circle") }
                     ForEach(store.grades.sorted { $0.date > $1.date }.prefix(5)) { grade in
-                        SoftCard { HStack { Text("\(grade.value)").font(.title.bold()).foregroundStyle(grade.value >= 4 ? AppTheme.mint : AppTheme.coral).frame(width: 44); VStack(alignment: .leading) { Text(grade.subject).font(.headline); Text(grade.date.formatted(date: .abbreviated, time: .omitted)).font(.caption).foregroundStyle(.secondary) }; Spacer() } }
+                        SoftCard { HStack { Text("\(grade.value)").font(.title.bold()).foregroundStyle(color(for: grade.value)).frame(width: 44); VStack(alignment: .leading) { Text(grade.subject).font(.headline); Text(grade.date.formatted(date: .abbreviated, time: .omitted)).font(.caption).foregroundStyle(.secondary) }; Spacer() } }
                     }
                     sectionTitle("Заметки", action: { addNote = true })
                     ForEach(store.notes.sorted { $0.isPinned && !$1.isPinned }) { note in
@@ -100,11 +100,11 @@ struct TrackerView: View {
             let avg = Double(sum) / Double(grades.count)
             let next = Double(sum + nextGrade) / Double(grades.count + 1)
             return (name: name, average: avg, count: grades.count,
-                    final: min(5, max(1, Int(avg.rounded()))), nextAverage: next,
-                    nextFinal: min(5, max(1, Int(next.rounded()))))
+                    final: min(10, max(1, Int(avg.rounded()))), nextAverage: next,
+                    nextFinal: min(10, max(1, Int(next.rounded()))))
         }.sorted { $0.name < $1.name }
     }
-    private func color(for grade: Int) -> Color { grade >= 4 ? AppTheme.mint : grade == 3 ? .orange : AppTheme.coral }
+    private func color(for grade: Int) -> Color { grade >= 8 ? AppTheme.mint : grade >= 6 ? .blue : grade >= 4 ? .orange : AppTheme.coral }
     private func sectionTitle(_ title: String, action: @escaping () -> Void) -> some View { HStack { Text(title).font(.title3.bold()); Spacer(); Button(action: action) { Image(systemName: "plus.circle.fill").font(.title2) } } }
     private func emptyCard(_ text: String, _ icon: String) -> some View { SoftCard { Label(text, systemImage: icon).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) } }
 }
@@ -117,8 +117,8 @@ struct AddAttendanceView: View {
 
 struct AddGradeView: View {
     @EnvironmentObject var store: AppStore; @Environment(\.dismiss) var dismiss
-    @State var subject = ""; @State var value = 5; @State var note = ""; @State var category = "Ответ на уроке"; @State var weight = 1
-    var body: some View { NavigationStack { Form { TextField("Предмет", text: $subject); Picker("Оценка", selection: $value) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }; Picker("Тип работы", selection: $category) { ForEach(["Ответ на уроке","Домашняя работа","Самостоятельная","Контрольная","Экзамен"], id: \.self) { Text($0).tag($0) } }; Picker("Вес", selection: $weight) { Text("Обычная ×1").tag(1); Text("Важная ×2").tag(2); Text("Контрольная ×3").tag(3) }; TextField("Комментарий", text: $note) }.navigationTitle("Новая оценка").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Добавить") { store.grades.append(Grade(subject: subject, value: value, note: note, category: category, weight: weight)); dismiss() }.disabled(subject.isEmpty) } } } }
+    @State var subject = ""; @State var value = 10; @State var note = ""; @State var category = "Ответ на уроке"; @State var weight = 1
+    var body: some View { NavigationStack { Form { TextField("Предмет", text: $subject); Picker("Оценка из 10", selection: $value) { ForEach(1...10, id: \.self) { Text("\($0) баллов").tag($0) } }; Picker("Тип работы", selection: $category) { ForEach(["Ответ на уроке","Домашняя работа","Самостоятельная","Контрольная","Экзамен"], id: \.self) { Text($0).tag($0) } }; Picker("Вес", selection: $weight) { Text("Обычная ×1").tag(1); Text("Важная ×2").tag(2); Text("Контрольная ×3").tag(3) }; TextField("Комментарий", text: $note) }.navigationTitle("Новая оценка").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Добавить") { store.grades.append(Grade(subject: subject, value: value, note: note, category: category, weight: weight)); dismiss() }.disabled(subject.isEmpty) } } } }
 }
 
 struct AddExamView: View {

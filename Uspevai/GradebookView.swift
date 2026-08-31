@@ -47,7 +47,7 @@ struct GradebookView: View {
     }
 
     private var summary: some View {
-        let average = store.grades.isEmpty ? 0 : Double(store.grades.map(\.value).reduce(0,+)) / Double(store.grades.count)
+        let average = weightedAverage(store.grades)
         return HStack(spacing: 12) {
             summaryCard("Оценок", "\(store.grades.count)", "number.circle.fill", AppTheme.violet)
             summaryCard("Средний", average == 0 ? "—" : String(format: "%.2f", average), "chart.line.uptrend.xyaxis", AppTheme.mint)
@@ -73,7 +73,7 @@ struct GradebookView: View {
                         let grades = store.grades.filter { $0.subject == subject }
                         let avg = weightedAverage(grades)
                         tableCell(grades.isEmpty ? "—" : String(format: "%.1f", avg), width: 58, shaded: index.isMultiple(of: 2), strong: true)
-                        tableCell(grades.isEmpty ? "—" : "\(min(5,max(1,Int(avg.rounded()))))", width: 62, shaded: index.isMultiple(of: 2), strong: true)
+                        tableCell(grades.isEmpty ? "—" : "\(min(10,max(1,Int(avg.rounded()))))", width: 62, shaded: index.isMultiple(of: 2), strong: true)
                     }
                 }
             }.clipShape(RoundedRectangle(cornerRadius: 18)).overlay(RoundedRectangle(cornerRadius: 18).stroke(.primary.opacity(0.08)))
@@ -96,8 +96,8 @@ struct GradebookView: View {
                 let avg = weightedAverage(grades)
                 SoftCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack { VStack(alignment: .leading) { Text(subject).font(.headline); Text("\(grades.count) оценок • средний \(grades.isEmpty ? "—" : String(format: "%.2f", avg))").font(.caption).foregroundStyle(.secondary) }; Spacer(); Text(grades.isEmpty ? "—" : "\(min(5,max(1,Int(avg.rounded()))))").font(.title.bold()).foregroundStyle(gradeColor(Int(avg.rounded()))) }
-                        ProgressView(value: min(5, avg), total: 5).tint(gradeColor(Int(avg.rounded())))
+                        HStack { VStack(alignment: .leading) { Text(subject).font(.headline); Text("\(grades.count) оценок • средний \(grades.isEmpty ? "—" : String(format: "%.2f", avg))").font(.caption).foregroundStyle(.secondary) }; Spacer(); Text(grades.isEmpty ? "—" : "\(min(10,max(1,Int(avg.rounded()))))").font(.title.bold()).foregroundStyle(gradeColor(Int(avg.rounded()))) }
+                        ProgressView(value: min(10, avg), total: 10).tint(gradeColor(Int(avg.rounded())))
                         ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(grades) { grade in Button { selectedGrade = grade } label: { VStack { Text("\(grade.value)").font(.headline); Text(grade.date.formatted(.dateTime.day().month(.twoDigits))).font(.caption2) }.foregroundStyle(.white).frame(width: 48, height: 52).background(gradeColor(grade.value), in: RoundedRectangle(cornerRadius: 13)) }.buttonStyle(.plain) } } }
                     }
                 }
@@ -117,9 +117,9 @@ struct GradebookView: View {
             .background(header ? AppTheme.violet.opacity(0.14) : shaded ? Color.primary.opacity(0.035) : Color(uiColor: .secondarySystemGroupedBackground)).overlay(alignment: .leading) { Divider() }
     }
     private func summaryCard(_ title: String, _ value: String, _ icon: String, _ color: Color) -> some View { VStack(spacing: 7) { Image(systemName: icon).foregroundStyle(color); Text(value).font(.title3.bold()); Text(title).font(.caption2).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)) }
-    private var legend: some View { HStack { legendItem(5,"Отлично"); legendItem(4,"Хорошо"); legendItem(3,"Средне"); legendItem(2,"Нужно подтянуть") }.font(.caption2).frame(maxWidth: .infinity) }
+    private var legend: some View { HStack { legendItem(10,"Отлично"); legendItem(8,"Хорошо"); legendItem(6,"Средне"); legendItem(3,"Нужно подтянуть") }.font(.caption2).frame(maxWidth: .infinity) }
     private func legendItem(_ value: Int, _ text: String) -> some View { HStack(spacing: 4) { Circle().fill(gradeColor(value)).frame(width: 8); Text(text) } }
-    private func gradeColor(_ value: Int) -> Color { value >= 5 ? AppTheme.mint : value == 4 ? .blue : value == 3 ? .orange : AppTheme.coral }
+    private func gradeColor(_ value: Int) -> Color { value >= 8 ? AppTheme.mint : value >= 6 ? .blue : value >= 4 ? .orange : AppTheme.coral }
 }
 
 struct GradeDetailView: View {
@@ -128,7 +128,7 @@ struct GradeDetailView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section { HStack { Spacer(); Text("\(grade.value)").font(.system(size: 58, weight: .bold, design: .rounded)).foregroundStyle(grade.value >= 4 ? AppTheme.mint : AppTheme.coral); Spacer() } }
+                Section { HStack { Spacer(); VStack { Text("\(grade.value)").font(.system(size: 58, weight: .bold, design: .rounded)); Text("из 10").font(.caption).foregroundStyle(.secondary) }.foregroundStyle(grade.value >= 8 ? AppTheme.mint : grade.value >= 4 ? .orange : AppTheme.coral); Spacer() } }
                 Section("Информация") { LabeledContent("Предмет", value: grade.subject); LabeledContent("Дата", value: grade.date.formatted(date: .long, time: .omitted)); LabeledContent("Тип", value: grade.category ?? "Обычная работа"); LabeledContent("Вес", value: "×\(grade.weight ?? 1)"); if !grade.note.isEmpty { LabeledContent("Комментарий", value: grade.note) } }
                 Section { Button("Удалить оценку", role: .destructive) { store.grades.removeAll { $0.id == grade.id }; dismiss() } }
             }.navigationTitle("Оценка").navigationBarTitleDisplayMode(.inline).toolbar { Button("Готово") { dismiss() } }

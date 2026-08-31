@@ -23,10 +23,12 @@ struct ScheduleView: View {
                                 NavigationLink { LessonEditor(lessonID: lesson.id) } label: { LessonRow(lesson: lesson) }.buttonStyle(.plain)
                                 Button { gradingLesson = lesson } label: {
                                     let grade = gradeFor(lesson)
-                                    VStack(spacing: 4) { Image(systemName: grade == nil ? "star" : "star.fill"); Text(grade.map(String.init) ?? "+").font(.caption.bold()) }
-                                        .foregroundStyle(grade == nil ? AppTheme.violet : .white).frame(width: 48, height: 58)
-                                        .background(grade == nil ? AppTheme.violet.opacity(0.12) : AppTheme.coral, in: RoundedRectangle(cornerRadius: 16))
-                                }
+                                    VStack(spacing: 2) { Text(grade.map(String.init) ?? "+").font(.title3.bold()).contentTransition(.numericText()); Text("БАЛЛ").font(.system(size: 7, weight: .heavy)).tracking(0.7) }
+                                        .foregroundStyle(grade == nil ? AppTheme.violet : .white).frame(width: 56, height: 56)
+                                        .background(grade == nil ? AppTheme.violet.opacity(0.10) : gradeColor(grade!), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                        .overlay { RoundedRectangle(cornerRadius: 15).stroke(grade == nil ? AppTheme.violet.opacity(0.35) : .white.opacity(0.25), lineWidth: 1.5) }
+                                        .shadow(color: grade == nil ? .clear : gradeColor(grade!).opacity(0.28), radius: 9, y: 5)
+                                }.buttonStyle(ScalePressStyle())
                             }
                         }
                         if store.lessons.filter({ $0.weekday == day }).isEmpty { ContentUnavailableView("В этот день уроков нет", systemImage: "calendar.badge.checkmark") }
@@ -42,18 +44,25 @@ struct ScheduleView: View {
     private func gradeFor(_ lesson: Lesson) -> Int? {
         store.grades.first { $0.lessonID == lesson.id && Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }?.value
     }
+    private func gradeColor(_ value: Int) -> Color { value >= 8 ? AppTheme.mint : value >= 6 ? .blue : value >= 4 ? .orange : AppTheme.coral }
 }
 
 struct AddLessonGradeView: View {
     @EnvironmentObject var store: AppStore; @Environment(\.dismiss) var dismiss
     let lesson: Lesson; let date: Date
-    @State private var value = 5; @State private var note = ""
+    @State private var value = 10; @State private var note = ""
     var body: some View {
         NavigationStack {
             Form {
                 LabeledContent("Предмет", value: lesson.title)
                 LabeledContent("Дата", value: date.formatted(date: .long, time: .omitted))
-                Picker("Оценка", selection: $value) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.segmented)
+                Section("Выбери балл") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {
+                        ForEach(1...10, id: \.self) { number in
+                            Button { withAnimation(.bouncy) { value = number } } label: { Text("\(number)").font(.title3.bold()).frame(maxWidth: .infinity).frame(height: 46).foregroundStyle(value == number ? .white : gradeColor(number)).background(value == number ? gradeColor(number) : gradeColor(number).opacity(0.11), in: RoundedRectangle(cornerRadius: 13)) }.buttonStyle(ScalePressStyle())
+                        }
+                    }.padding(.vertical, 5)
+                }
                 TextField("За что поставили?", text: $note)
             }.navigationTitle("Оценка за урок").toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
@@ -61,6 +70,7 @@ struct AddLessonGradeView: View {
             }
         }
     }
+    private func gradeColor(_ value: Int) -> Color { value >= 8 ? AppTheme.mint : value >= 6 ? .blue : value >= 4 ? .orange : AppTheme.coral }
 }
 
 struct LessonEditor: View {

@@ -27,6 +27,10 @@ final class AppStore: ObservableObject {
         termEnd = defaults.object(forKey: "termEnd") as? Date ?? Calendar.current.date(from: DateComponents(year: 2026, month: 12, day: 26))!
         remindersEnabled = defaults.object(forKey: "reminders") as? Bool ?? true
         darkMode = defaults.bool(forKey: "darkMode")
+        if !defaults.bool(forKey: "migratedToTenPointScale") {
+            grades = grades.map { old in var updated = old; updated.value = min(10, old.value * 2); return updated }
+            defaults.set(true, forKey: "migratedToTenPointScale")
+        }
     }
 
     func requestNotifications() async {
