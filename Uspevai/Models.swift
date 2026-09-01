@@ -16,6 +16,8 @@ struct Homework: Identifiable, Codable, Hashable, Sendable {
     var text: String
     var dueDate: Date
     var isDone = false
+    var lessonID: UUID? = nil
+    var createdAt: Date? = nil
 }
 
 struct Grade: Identifiable, Codable, Hashable, Sendable {

@@ -39,7 +39,7 @@ final class AppStore: ObservableObject {
 
     func addHomework(for lesson: Lesson, text: String, dueDate: Date) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        homework.append(Homework(lessonTitle: lesson.title, text: text, dueDate: dueDate))
+        homework.append(Homework(lessonTitle: lesson.title, text: text, dueDate: dueDate, lessonID: lesson.id, createdAt: Date()))
     }
 
     func replaceLessons(_ imported: [Lesson]) {
