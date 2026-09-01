@@ -3,12 +3,12 @@ import UserNotifications
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var lessons: [Lesson] { didSet { save() } }
-    @Published var homework: [Homework] { didSet { save() } }
-    @Published var grades: [Grade] { didSet { save() } }
-    @Published var attendance: [Attendance] { didSet { save() } }
-    @Published var exams: [Exam] { didSet { save() } }
-    @Published var notes: [SchoolNote] { didSet { save() } }
+    @Published var lessons: [Lesson] { didSet { save(lessons, key: "lessons") } }
+    @Published var homework: [Homework] { didSet { save(homework, key: "homework") } }
+    @Published var grades: [Grade] { didSet { save(grades, key: "grades") } }
+    @Published var attendance: [Attendance] { didSet { save(attendance, key: "attendance") } }
+    @Published var exams: [Exam] { didSet { save(exams, key: "exams") } }
+    @Published var notes: [SchoolNote] { didSet { save(notes, key: "notes") } }
     @Published var termEnd: Date { didSet { defaults.set(termEnd, forKey: "termEnd") } }
     @Published var remindersEnabled: Bool { didSet { defaults.set(remindersEnabled, forKey: "reminders"); scheduleNotifications() } }
     @Published var darkMode: Bool { didSet { defaults.set(darkMode, forKey: "darkMode") } }
@@ -51,13 +51,9 @@ final class AppStore: ObservableObject {
 
     func refreshNotifications() { scheduleNotifications() }
 
-    private func save() {
-        if let data = try? encoder.encode(lessons) { defaults.set(data, forKey: "lessons") }
-        if let data = try? encoder.encode(homework) { defaults.set(data, forKey: "homework") }
-        if let data = try? encoder.encode(grades) { defaults.set(data, forKey: "grades") }
-        if let data = try? encoder.encode(attendance) { defaults.set(data, forKey: "attendance") }
-        if let data = try? encoder.encode(exams) { defaults.set(data, forKey: "exams") }
-        if let data = try? encoder.encode(notes) { defaults.set(data, forKey: "notes") }
+    private func save<T: Encodable>(_ value: T, key: String) {
+        guard let data = try? encoder.encode(value) else { return }
+        defaults.set(data, forKey: key)
     }
 
     private static func load<T: Decodable>(_ type: T.Type, key: String) -> T? {

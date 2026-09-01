@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var store: AppStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection = 0
     @State private var showLaunch = true
 
@@ -16,7 +17,11 @@ struct RootView: View {
             }.tint(AppTheme.violet).toolbarBackground(.ultraThinMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
                 .sensoryFeedback(.selection, trigger: selection)
             if showLaunch { LaunchView().transition(.opacity.combined(with: .scale(scale: 1.08))) }
-        }.task { await store.requestNotifications(); try? await Task.sleep(for: .milliseconds(1100)); withAnimation(.easeInOut(duration: 0.55)) { showLaunch = false } }
+        }.task {
+            await store.requestNotifications()
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 150 : 650))
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { showLaunch = false }
+        }
     }
 }
 
