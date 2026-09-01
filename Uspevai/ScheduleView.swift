@@ -33,7 +33,7 @@ struct ScheduleView: View {
                 .toolbar { Button { showImport = true } label: { Label("Импорт", systemImage: "camera.viewfinder") } }
                 .sheet(isPresented: $showImport) { ImportScheduleView() }
                 .sheet(item: $gradingLesson) { lesson in AddLessonGradeView(lesson: lesson, date: selectedDate) }
-                .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: selectedDate).presentationDetents([.medium, .large]).presentationDragIndicator(.visible) }
+                .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: selectedDate).presentationDetents([.large]).presentationDragIndicator(.visible) }
         }
     }
 
@@ -171,6 +171,7 @@ struct SmartHomeworkEntryView: View {
     let lessonDate: Date
     @State private var text = ""
     @State private var dueDate: Date
+    @State private var automaticDeadline = true
 
     init(lesson: Lesson, lessonDate: Date) {
         self.lesson = lesson
@@ -201,10 +202,27 @@ struct SmartHomeworkEntryView: View {
                     }
 
                     SoftCard {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label("Срок выполнения", systemImage: "calendar.badge.clock").font(.headline)
-                            DatePicker("До следующего урока", selection: $dueDate).datePickerStyle(.compact).tint(AppTheme.violet)
-                            Text("Мы нашли следующий урок автоматически. Дату можно изменить.").font(.caption).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Срок выполнения", systemImage: "calendar.badge.clock").font(.headline)
+                                Spacer()
+                                Toggle("Автоматически", isOn: $automaticDeadline).labelsHidden().tint(AppTheme.violet)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(automaticDeadline ? "Автоматический срок" : "Выбран вручную").font(.caption.bold()).foregroundStyle(automaticDeadline ? AppTheme.mint : AppTheme.violet)
+                                Text(dueDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute())).font(.title3.bold())
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background((automaticDeadline ? AppTheme.mint : AppTheme.violet).opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+
+                            Divider()
+                            Text("Выбери дату в календаре").font(.subheadline.bold())
+                            DatePicker("Дата", selection: manualDueDate, displayedComponents: .date)
+                                .datePickerStyle(.graphical).labelsHidden().tint(AppTheme.violet)
+                            HStack {
+                                Label("Время", systemImage: "clock")
+                                Spacer()
+                                DatePicker("Время", selection: manualDueDate, displayedComponents: .hourAndMinute).labelsHidden().datePickerStyle(.compact).tint(AppTheme.violet)
+                            }.font(.subheadline.bold())
+                            Text("По умолчанию срок совпадает с началом следующего урока. Изменение даты или времени отключит автоматический режим.").font(.caption).foregroundStyle(.secondary)
                         }
                     }
 
@@ -219,10 +237,14 @@ struct SmartHomeworkEntryView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
             }
             .onAppear { dueDate = nextLessonDate }
+            .onChange(of: automaticDeadline) { _, enabled in if enabled { withAnimation(.snappy) { dueDate = nextLessonDate } } }
         }
     }
 
     private var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var manualDueDate: Binding<Date> {
+        Binding(get: { dueDate }, set: { value in dueDate = value; automaticDeadline = false })
+    }
     private func save() { guard !trimmedText.isEmpty else { return }; store.addHomework(for: lesson, text: trimmedText, dueDate: dueDate); dismiss() }
 
     private var nextLessonDate: Date {
