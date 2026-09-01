@@ -15,7 +15,7 @@ struct ImportScheduleView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
+                LazyVStack(spacing: 18) {
                     if let image { Image(uiImage: image).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 22)) }
                     else { Image(systemName: "text.viewfinder").font(.system(size: 58)).foregroundStyle(AppTheme.violet); Text("Выбери фото таблицы с расписанием").font(.title3.bold()) }
                     PhotosPicker(selection: $photo, matching: .images) { Label("Выбрать фотографию", systemImage: "photo").frame(maxWidth: .infinity).padding().background(AppTheme.violet, in: RoundedRectangle(cornerRadius: 16)).foregroundStyle(.white).fontWeight(.semibold) }

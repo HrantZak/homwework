@@ -26,7 +26,7 @@ struct TodayView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                LazyVStack(alignment: .leading, spacing: 18) {
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(colors: [AppTheme.violet, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                         Circle().fill(.white.opacity(0.13)).frame(width: 180).offset(x: heroMoves ? 210 : 250, y: heroMoves ? -35 : -70)

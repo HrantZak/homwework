@@ -4,9 +4,6 @@ struct StudentCenterView: View {
     @EnvironmentObject var store: AppStore
     @State private var targetGrade = 8
     @State private var futureGrades = 3
-    @State private var focusMinutes = 25
-    @State private var focusLeft = 0
-    @State private var focusing = false
     @State private var showAllTools = false
 
     private var average: Double { weightedAverage(store.grades) }
@@ -17,7 +14,7 @@ struct StudentCenterView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
+                LazyVStack(spacing: 18) {
                     header
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         metric("Средний балл", average == 0 ? "—" : String(format: "%.2f", average), "chart.line.uptrend.xyaxis", AppTheme.mint)
@@ -26,7 +23,7 @@ struct StudentCenterView: View {
                         metric("До четверти", "\(daysToTerm) дн.", "calendar.badge.clock", AppTheme.coral)
                     }
                     quickLinks
-                    focusCard
+                    FocusTimerCard()
                     targetCalculator
                     gradeDistribution
                     smartFeed
@@ -34,15 +31,6 @@ struct StudentCenterView: View {
                 }.padding()
             }.background { AnimatedAppBackground() }.navigationTitle("Центр ученика")
                 .sheet(isPresented: $showAllTools) { AllToolsView() }
-                .task(id: focusing) {
-                    guard focusing else { return }
-                    while !Task.isCancelled && focusLeft > 0 {
-                        try? await Task.sleep(for: .seconds(1))
-                        guard !Task.isCancelled && focusing else { return }
-                        focusLeft -= 1
-                    }
-                    if focusLeft == 0 { focusing = false }
-                }
         }
     }
 
@@ -56,10 +44,6 @@ struct StudentCenterView: View {
 
     private var quickLinks: some View {
         SoftCard { VStack(alignment: .leading, spacing: 13) { Text("Быстрый доступ").font(.headline); HStack { NavigationLink { TrackerView() } label: { quick("Аналитика", "chart.bar.fill", AppTheme.mint) }; NavigationLink { SettingsView() } label: { quick("Настройки", "slider.horizontal.3", .blue) }; NavigationLink { ImportScheduleView() } label: { quick("Фото", "camera.fill", AppTheme.coral) } }.buttonStyle(ScalePressStyle()) } }
-    }
-
-    private var focusCard: some View {
-        SoftCard { VStack(alignment: .leading, spacing: 14) { HStack { Label("Таймер фокуса", systemImage: "timer").font(.headline); Spacer(); Text(clockText).font(.title2.monospacedDigit().bold()).foregroundStyle(AppTheme.violet) }; HStack(spacing: 7) { ForEach([15,25,40,50,60,90], id: \.self) { value in Button("\(value)") { focusMinutes = value; focusLeft = value*60; focusing = false }.font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 9).background(focusMinutes == value ? AppTheme.violet : Color.primary.opacity(0.06), in: Capsule()).foregroundStyle(focusMinutes == value ? Color.white : Color.primary).buttonStyle(ScalePressStyle()) } }; ProgressView(value: Double(focusLeft == 0 ? 0 : focusMinutes*60-focusLeft), total: Double(max(1,focusMinutes*60))).tint(AppTheme.violet); Button(focusing ? "Пауза" : focusLeft == 0 ? "Начать" : "Продолжить") { if focusLeft == 0 { focusLeft = focusMinutes*60 }; focusing.toggle() }.buttonStyle(.borderedProminent).tint(AppTheme.violet) } }
     }
 
     private var targetCalculator: some View {
@@ -81,7 +65,6 @@ struct StudentCenterView: View {
     private var requiredAverage: Double { let count = store.grades.count; return futureGrades == 0 ? 0 : (Double(targetGrade * (count + futureGrades)) - average * Double(count)) / Double(futureGrades) }
     private var requiredAverageText: String { requiredAverage > 10 ? "Выше 10 — измени цель" : String(format: "%.2f из 10", max(1,requiredAverage)) }
     private var daysToTerm: Int { max(0, Calendar.current.dateComponents([.day], from: Date(), to: store.termEnd).day ?? 0) }
-    private var clockText: String { let seconds = focusLeft == 0 ? focusMinutes*60 : focusLeft; return String(format: "%02d:%02d", seconds/60, seconds%60) }
     private var greeting: String { let hour = Calendar.current.component(.hour, from: Date()); return hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер" }
     private func color(_ grade: Int) -> Color { grade >= 8 ? AppTheme.mint : grade >= 6 ? .blue : grade >= 4 ? .orange : AppTheme.coral }
 }

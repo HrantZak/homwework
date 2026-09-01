@@ -3,19 +3,18 @@ import UserNotifications
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var lessons: [Lesson] { didSet { save(lessons, key: "lessons") } }
-    @Published var homework: [Homework] { didSet { save(homework, key: "homework") } }
-    @Published var grades: [Grade] { didSet { save(grades, key: "grades") } }
-    @Published var attendance: [Attendance] { didSet { save(attendance, key: "attendance") } }
-    @Published var exams: [Exam] { didSet { save(exams, key: "exams") } }
-    @Published var notes: [SchoolNote] { didSet { save(notes, key: "notes") } }
+    @Published var lessons: [Lesson] { didSet { scheduleSave(lessons, key: "lessons") } }
+    @Published var homework: [Homework] { didSet { scheduleSave(homework, key: "homework") } }
+    @Published var grades: [Grade] { didSet { scheduleSave(grades, key: "grades") } }
+    @Published var attendance: [Attendance] { didSet { scheduleSave(attendance, key: "attendance") } }
+    @Published var exams: [Exam] { didSet { scheduleSave(exams, key: "exams") } }
+    @Published var notes: [SchoolNote] { didSet { scheduleSave(notes, key: "notes") } }
     @Published var termEnd: Date { didSet { defaults.set(termEnd, forKey: "termEnd") } }
     @Published var remindersEnabled: Bool { didSet { defaults.set(remindersEnabled, forKey: "reminders"); scheduleNotifications() } }
     @Published var darkMode: Bool { didSet { defaults.set(darkMode, forKey: "darkMode") } }
 
     private let defaults = UserDefaults.standard
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
+    private var pendingSaves: [String: Task<Void, Never>] = [:]
 
     init() {
         lessons = Self.load([Lesson].self, key: "lessons") ?? SeedData.lessons
@@ -51,9 +50,17 @@ final class AppStore: ObservableObject {
 
     func refreshNotifications() { scheduleNotifications() }
 
-    private func save<T: Encodable>(_ value: T, key: String) {
-        guard let data = try? encoder.encode(value) else { return }
-        defaults.set(data, forKey: key)
+    private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {
+        pendingSaves[key]?.cancel()
+        pendingSaves[key] = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            let data = await Task.detached(priority: .utility) {
+                try? JSONEncoder().encode(value)
+            }.value
+            guard !Task.isCancelled, let data else { return }
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 
     private static func load<T: Decodable>(_ type: T.Type, key: String) -> T? {

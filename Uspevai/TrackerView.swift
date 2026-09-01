@@ -6,8 +6,6 @@ struct TrackerView: View {
     @State private var addExam = false
     @State private var addNote = false
     @State private var addAttendance = false
-    @State private var focusSeconds = 25 * 60
-    @State private var focusing = false
     @State private var nextGrade = 10
 
     private var average: Double {
@@ -22,7 +20,7 @@ struct TrackerView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                LazyVStack(spacing: 16) {
                     HStack(spacing: 12) {
                         stat("Средний балл", average == 0 ? "—" : String(format: "%.1f", average), "star.fill", AppTheme.coral)
                         stat("Посещение", "\(attendanceRate)%", "person.fill.checkmark", AppTheme.mint)
@@ -58,13 +56,7 @@ struct TrackerView: View {
                             Text("Прогноз округляется по обычному правилу. Учитель может учитывать контрольные с другим весом.").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    SoftCard {
-                        VStack(spacing: 12) {
-                            HStack { Label("Фокус", systemImage: "timer").font(.headline); Spacer(); Text(String(format: "%02d:%02d", focusSeconds/60, focusSeconds%60)).font(.title2.monospacedDigit().bold()) }
-                            ProgressView(value: Double(25*60-focusSeconds), total: Double(25*60)).tint(AppTheme.violet)
-                            HStack { Button(focusing ? "Пауза" : "Начать") { focusing.toggle() }.buttonStyle(.borderedProminent).tint(AppTheme.violet); Button("Сбросить") { focusing = false; focusSeconds = 25*60 }.buttonStyle(.bordered) }
-                        }
-                    }
+                    FocusTimerCard(presets: [25])
                     sectionTitle("Ближайшие экзамены", action: { addExam = true })
                     if store.exams.isEmpty { emptyCard("Добавь контрольную или экзамен", "calendar.badge.plus") }
                     ForEach(store.exams.sorted { $0.date < $1.date }.prefix(4)) { exam in
@@ -89,15 +81,6 @@ struct TrackerView: View {
                 .sheet(isPresented: $addExam) { AddExamView() }
                 .sheet(isPresented: $addNote) { AddNoteView() }
                 .sheet(isPresented: $addAttendance) { AddAttendanceView() }
-                .task(id: focusing) {
-                    guard focusing else { return }
-                    while !Task.isCancelled && focusSeconds > 0 {
-                        try? await Task.sleep(for: .seconds(1))
-                        guard !Task.isCancelled && focusing else { return }
-                        focusSeconds -= 1
-                    }
-                    if focusSeconds == 0 { focusing = false }
-                }
         }
     }
     private func stat(_ title: String, _ value: String, _ icon: String, _ color: Color) -> some View { SoftCard { VStack(alignment: .leading, spacing: 10) { Image(systemName: icon).foregroundStyle(color); Text(value).font(.title.bold()); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }

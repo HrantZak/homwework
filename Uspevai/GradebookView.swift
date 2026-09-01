@@ -98,7 +98,7 @@ struct GradebookView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
+                LazyVStack(spacing: 18) {
                     PremiumTitle(eyebrow: "Учебный месяц", title: "Календарь оценок", icon: "calendar.badge.checkmark")
                     GradeCalendar(displayedMonth: $displayedMonth, selectedDate: $selectedDate, gradedDates: store.grades.map(\.date))
                     selectedDayCard
@@ -195,7 +195,7 @@ struct GradebookView: View {
     }
 
     private var subjectCards: some View {
-        VStack(spacing: 13) {
+        LazyVStack(spacing: 13) {
             ForEach(visibleSubjects, id: \.self) { subject in
                 let grades = store.grades.filter { $0.subject == subject }.sorted { $0.date > $1.date }
                 let avg = weightedAverage(grades)

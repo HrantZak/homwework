@@ -1,6 +1,6 @@
 import Foundation
 
-struct Lesson: Identifiable, Codable, Hashable {
+struct Lesson: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var weekday: Int
     var order: Int
@@ -10,7 +10,7 @@ struct Lesson: Identifiable, Codable, Hashable {
     var endsAt: String
 }
 
-struct Homework: Identifiable, Codable, Hashable {
+struct Homework: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var lessonTitle: String
     var text: String
@@ -18,20 +18,20 @@ struct Homework: Identifiable, Codable, Hashable {
     var isDone = false
 }
 
-struct Grade: Identifiable, Codable, Hashable {
+struct Grade: Identifiable, Codable, Hashable, Sendable {
     var id = UUID(); var subject: String; var value: Int; var date = Date(); var note = ""; var lessonID: UUID? = nil
     var category: String? = nil; var weight: Int? = nil
 }
 
-struct Attendance: Identifiable, Codable, Hashable {
+struct Attendance: Identifiable, Codable, Hashable, Sendable {
     var id = UUID(); var subject: String; var date = Date(); var wasPresent = true
 }
 
-struct Exam: Identifiable, Codable, Hashable {
+struct Exam: Identifiable, Codable, Hashable, Sendable {
     var id = UUID(); var title: String; var subject: String; var date: Date; var room = ""
 }
 
-struct SchoolNote: Identifiable, Codable, Hashable {
+struct SchoolNote: Identifiable, Codable, Hashable, Sendable {
     var id = UUID(); var title: String; var text: String; var createdAt = Date(); var isPinned = false
 }
 
