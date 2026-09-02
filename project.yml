@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: 6.3.2
-    CURRENT_PROJECT_VERSION: 21
+    MARKETING_VERSION: 6.4.1
+    CURRENT_PROJECT_VERSION: 23
     SWIFT_VERSION: 5.10
 targets:
   Uspevai:

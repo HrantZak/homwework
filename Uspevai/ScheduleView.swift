@@ -5,9 +5,16 @@ struct ScheduleView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedDate = Date()
     @State private var showImport = false
+    @State private var showScheduleManager = false
     @State private var gradingLesson: Lesson?
     @State private var homeworkLesson: Lesson?
-    private var day: Int { Calendar.current.component(.weekday, from: selectedDate) }
+    private var day: Int { appCalendar.component(.weekday, from: selectedDate) }
+    private var appCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "ru_RU")
+        calendar.timeZone = .current
+        return calendar
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,8 +37,14 @@ struct ScheduleView: View {
                 }.padding()
             }
             .background { AnimatedAppBackground() }.navigationTitle("Расписание")
-                .toolbar { Button { showImport = true } label: { Label("Импорт", systemImage: "camera.viewfinder") } }
+                .toolbar {
+                    Menu {
+                        Button { showScheduleManager = true } label: { Label("Всё расписание", systemImage: "tablecells") }
+                        Button { showImport = true } label: { Label("Импорт с фото", systemImage: "camera.viewfinder") }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
                 .sheet(isPresented: $showImport) { ImportScheduleView() }
+                .sheet(isPresented: $showScheduleManager) { ScheduleManagerView() }
                 .sheet(item: $gradingLesson) { lesson in AddLessonGradeView(lesson: lesson, date: selectedDate) }
                 .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: selectedDate).presentationDetents([.large]).presentationDragIndicator(.visible) }
         }

@@ -46,7 +46,7 @@ struct ImportScheduleView: View {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.recognitionLanguages = ["hy-AM", "ru-RU", "en-US"]
-        let handler = VNImageRequestHandler(cgImage: cgImage)
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: CGImagePropertyOrientation(uiImage.imageOrientation))
         try? handler.perform([request])
         let results = request.results ?? []
         recognized = results.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
@@ -85,4 +85,20 @@ struct ImportScheduleView: View {
     }
 
     private func dayName(_ weekday: Int) -> String { [2:"Пн", 3:"Вт", 4:"Ср", 5:"Чт", 6:"Пт"][weekday] ?? "" }
+}
+
+private extension CGImagePropertyOrientation {
+    init(_ orientation: UIImage.Orientation) {
+        switch orientation {
+        case .up: self = .up
+        case .upMirrored: self = .upMirrored
+        case .down: self = .down
+        case .downMirrored: self = .downMirrored
+        case .left: self = .left
+        case .leftMirrored: self = .leftMirrored
+        case .right: self = .right
+        case .rightMirrored: self = .rightMirrored
+        @unknown default: self = .up
+        }
+    }
 }

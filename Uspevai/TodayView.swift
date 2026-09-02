@@ -3,73 +3,76 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject var store: AppStore
     @State private var heroMoves = false
-    private var weekday: Int { Calendar.current.component(.weekday, from: Date()) }
-    private var today: [Lesson] { store.lessons.filter { $0.weekday == weekday }.sorted { $0.order < $1.order } }
     private var openHomework: [Homework] {
         store.homework.filter { !$0.isDone }.sorted { $0.dueDate < $1.dueDate }
-    }
-    private var completedLessons: Int {
-        let now = Date.now
-        return today.filter { lesson in
-            guard let end = time(on: now, value: lesson.endsAt) else { return false }
-            return end < now
-        }.count
-    }
-    private var nextLesson: Lesson? {
-        let now = Date.now
-        return today.first { lesson in
-            guard let end = time(on: now, value: lesson.endsAt) else { return false }
-            return end >= now
-        }
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
+            TimelineView(.periodic(from: .now, by: 30)) { timeline in
+                let today = lessons(on: timeline.date)
+                let completed = completedLessons(in: today, now: timeline.date)
+                let next = nextLesson(in: today, now: timeline.date)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 18) {
                     ZStack(alignment: .bottomLeading) {
                         LinearGradient(colors: [AppTheme.violet, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                         Circle().fill(.white.opacity(0.13)).frame(width: 180).offset(x: heroMoves ? 210 : 250, y: heroMoves ? -35 : -70)
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).opacity(0.8)
-                            Text(today.isEmpty ? "Сегодня можно выдохнуть" : "Сегодня \(lessonCountText)").font(.system(size: 29, weight: .bold, design: .rounded))
+                            Text(timeline.date.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).opacity(0.8)
+                            Text(today.isEmpty ? "Сегодня можно выдохнуть" : "Сегодня \(lessonCountText(today.count))").font(.system(size: 29, weight: .bold, design: .rounded))
                             Text("Всё важное — в одном месте").opacity(0.82)
                         }.foregroundStyle(.white).padding(24)
                     }.frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: AppTheme.violet.opacity(0.18), radius: 12, y: 7).onAppear { withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { heroMoves = true } }
 
-                    if !today.isEmpty { dayProgress }
+                    if !today.isEmpty { dayProgress(completed: completed, total: today.count) }
                     if let homework = openHomework.first { homeworkFocus(homework) }
 
                     HStack {
                         Text("Твой день").font(.title2.bold())
                         Spacer()
-                        if let nextLesson { Text("Далее · \(nextLesson.startsAt)").font(.caption.bold()).foregroundStyle(AppTheme.violet) }
+                        if let next { Text("Далее · \(next.startsAt)").font(.caption.bold()).foregroundStyle(AppTheme.violet) }
                     }
                     if today.isEmpty { ContentUnavailableView("Уроков нет", systemImage: "sun.max", description: Text("Посмотри задания или отдохни")) }
                     ForEach(today) { lesson in LessonRow(lesson: lesson) }
-                }.padding()
-            }.background { AnimatedAppBackground() }.navigationTitle("Успевай")
+                    }.padding()
+                }.background { AnimatedAppBackground() }
+            }.navigationTitle("Успевай")
         }
     }
 
-    private var lessonCountText: String {
-        let remainder10 = today.count % 10
-        let remainder100 = today.count % 100
-        let word = remainder10 == 1 && remainder100 != 11 ? "урок" : (2...4).contains(remainder10) && !(12...14).contains(remainder100) ? "урока" : "уроков"
-        return "\(today.count) \(word)"
+    private func lessons(on date: Date) -> [Lesson] {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
+        let weekday = calendar.component(.weekday, from: date)
+        return store.lessons.filter { $0.weekday == weekday }.sorted { $0.order < $1.order }
     }
 
-    private var dayProgress: some View {
+    private func completedLessons(in lessons: [Lesson], now: Date) -> Int {
+        lessons.filter { lesson in guard let end = time(on: now, value: lesson.endsAt) else { return false }; return end <= now }.count
+    }
+
+    private func nextLesson(in lessons: [Lesson], now: Date) -> Lesson? {
+        lessons.first { lesson in guard let end = time(on: now, value: lesson.endsAt) else { return false }; return end > now }
+    }
+
+    private func lessonCountText(_ count: Int) -> String {
+        let remainder10 = count % 10
+        let remainder100 = count % 100
+        let word = remainder10 == 1 && remainder100 != 11 ? "урок" : (2...4).contains(remainder10) && !(12...14).contains(remainder100) ? "урока" : "уроков"
+        return "\(count) \(word)"
+    }
+
+    private func dayProgress(completed: Int, total: Int) -> some View {
         SoftCard {
             VStack(alignment: .leading, spacing: 11) {
                 HStack {
-                    Label(completedLessons == today.count ? "Учебный день завершён" : "Прогресс дня", systemImage: completedLessons == today.count ? "checkmark.seal.fill" : "clock.fill").font(.headline)
+                    Label(completed == total ? "Учебный день завершён" : "Прогресс дня", systemImage: completed == total ? "checkmark.seal.fill" : "clock.fill").font(.headline)
                     Spacer()
-                    Text("\(completedLessons) из \(today.count)").font(.subheadline.bold()).foregroundStyle(AppTheme.violet)
+                    Text("\(completed) из \(total)").font(.subheadline.bold()).foregroundStyle(completed == total ? AppTheme.mint : AppTheme.violet).contentTransition(.numericText())
                 }
-                ProgressView(value: Double(completedLessons), total: Double(max(1, today.count))).tint(completedLessons == today.count ? AppTheme.mint : AppTheme.violet)
+                ProgressView(value: Double(completed), total: Double(max(1, total))).tint(completed == total ? AppTheme.mint : AppTheme.violet)
             }
-        }
+        }.animation(.spring(response: 0.45, dampingFraction: 0.82), value: completed)
     }
 
     private func homeworkFocus(_ item: Homework) -> some View {
