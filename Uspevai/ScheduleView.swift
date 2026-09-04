@@ -24,11 +24,7 @@ struct ScheduleView: View {
                     dateHero
                     if let override = store.override(on: selectedDate) { overrideBanner(override) }
                     if !dayLessons.isEmpty {
-                        HStack {
-                            Text("Уроки").font(.title2.bold())
-                            Spacer()
-                            Text("\(dayLessons.count) · \(totalDurationText)").font(.caption.bold()).foregroundStyle(.secondary)
-                        }.padding(.top, 2)
+                        SectionHeader(title: "Уроки", subtitle: "\(dayLessons.count) · \(totalDurationText)", symbol: "clock.badge.checkmark.fill").padding(.top, 2)
                     }
                         TimelineView(.periodic(from: .now, by: 30)) { timeline in
                             ForEach(dayLessons) { lesson in
@@ -72,7 +68,7 @@ struct ScheduleView: View {
 
     private var dateHero: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.23, green: 0.10, blue: 0.70), AppTheme.violet, AppTheme.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+            AppTheme.heroGradient
             Circle().fill(.white.opacity(0.11)).frame(width: 150).offset(x: 125, y: -48)
             Circle().fill(AppTheme.mint.opacity(0.20)).frame(width: 80).blur(radius: 2).offset(x: -145, y: 80)
             VStack(spacing: 18) {

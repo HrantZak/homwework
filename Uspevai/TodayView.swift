@@ -17,24 +17,35 @@ struct TodayView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
                     ZStack(alignment: .bottomLeading) {
-                        LinearGradient(colors: [AppTheme.violet, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        Circle().fill(.white.opacity(0.13)).frame(width: 180).offset(x: heroMoves ? 210 : 250, y: heroMoves ? -35 : -70)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(timeline.date.formatted(.dateTime.weekday(.wide).day().month(.wide))).font(.subheadline).opacity(0.8)
-                            Text(today.isEmpty ? "Сегодня можно выдохнуть" : "Сегодня \(lessonCountText(today.count))").font(.system(size: 29, weight: .bold, design: .rounded))
-                            Text("Всё важное — в одном месте").opacity(0.82)
-                        }.foregroundStyle(.white).padding(24)
-                    }.frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: AppTheme.violet.opacity(0.18), radius: 12, y: 7).onAppear { withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { heroMoves = true } }
+                        AppTheme.heroGradient
+                        Circle().fill(.white.opacity(0.13)).frame(width: 210).offset(x: heroMoves ? 205 : 260, y: heroMoves ? -50 : -90)
+                        Circle().fill(AppTheme.cyan.opacity(0.28)).frame(width: 110).blur(radius: 4).offset(x: -135, y: 85)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                StatusPill(title: timeline.date.formatted(.dateTime.weekday(.wide)), symbol: "sun.max.fill", color: .white)
+                                Spacer()
+                                Text(timeline.date.formatted(.dateTime.day().month(.abbreviated))).font(.subheadline.bold()).opacity(0.78)
+                            }
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(today.isEmpty ? "Можно выдохнуть" : "В ритме учёбы").font(.caption.bold()).tracking(1.3).opacity(0.72)
+                                Text(today.isEmpty ? "Сегодня отдыхаем" : "Сегодня \(lessonCountText(today.count))").font(.system(size: 31, weight: .heavy, design: .rounded))
+                            }
+                            HStack(spacing: 8) {
+                                heroMetric("\(completed)/\(today.count)", "пройдено", "checkmark.circle.fill")
+                                heroMetric("\(openHomework.count)", "заданий", "book.closed.fill")
+                                heroMetric(next?.startsAt ?? "—", "следующий", "clock.fill")
+                            }
+                        }.foregroundStyle(.white).padding(22)
+                    }.frame(height: 235).clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 32).stroke(.white.opacity(0.18)) }
+                        .shadow(color: AppTheme.violet.opacity(0.30), radius: 24, y: 13)
+                        .onAppear { withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { heroMoves = true } }
 
                     if !today.isEmpty { dayProgress(completed: completed, total: today.count) }
                     if let active = activeLesson(in: today, now: timeline.date) { activeLessonCard(active) }
                     if let homework = openHomework.first { homeworkFocus(homework) }
 
-                    HStack {
-                        Text("Твой день").font(.title2.bold())
-                        Spacer()
-                        if let next { Text("Далее · \(next.startsAt)").font(.caption.bold()).foregroundStyle(AppTheme.violet) }
-                    }
+                    SectionHeader(title: "Твой день", subtitle: today.isEmpty ? "Свободный день" : "Расписание и прогресс", symbol: "calendar.day.timeline.left")
                     if today.isEmpty { ContentUnavailableView("Уроков нет", systemImage: "sun.max", description: Text("Посмотри задания или отдохни")) }
                     ForEach(today) { lesson in LessonRow(lesson: lesson) }
                     }.padding()
@@ -71,6 +82,14 @@ struct TodayView: View {
                 Spacer(); Image(systemName: "square.and.pencil").font(.title3.bold())
             }.padding(17).foregroundStyle(.white).background(LinearGradient(colors: [AppTheme.coral, AppTheme.violet], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 21))
         }.buttonStyle(ScalePressStyle())
+    }
+
+    private func heroMetric(_ value: String, _ title: String, _ symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) { Image(systemName: symbol).font(.caption2); Text(value).font(.subheadline.bold()).monospacedDigit() }
+            Text(title).font(.system(size: 10, weight: .semibold)).opacity(0.68)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).frame(height: 50)
+            .background(.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func lessonCountText(_ count: Int) -> String {
@@ -126,13 +145,17 @@ struct LessonRow: View {
     let lesson: Lesson
     var body: some View {
         SoftCard {
-            HStack(spacing: 15) {
-                VStack { Text(lesson.startsAt).font(.headline); Text(lesson.endsAt).font(.caption).foregroundStyle(.secondary) }
-                Capsule().fill(AppTheme.violet.gradient).frame(width: 5, height: 46)
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 15).fill(lessonColor.opacity(0.12))
+                    Image(systemName: lessonSymbol).font(.title3.bold()).foregroundStyle(lessonColor)
+                }.frame(width: 50, height: 50)
                 VStack(alignment: .leading, spacing: 4) { Text(lesson.title).font(.headline); if !lesson.teacher.isEmpty { Text(lesson.teacher).font(.caption).foregroundStyle(.secondary) } }
                 Spacer()
-                Text("\(lesson.order)").font(.caption.bold()).foregroundStyle(AppTheme.violet).padding(8).background(AppTheme.violet.opacity(0.12), in: Circle())
+                VStack(alignment: .trailing, spacing: 4) { Text(lesson.startsAt).font(.subheadline.monospacedDigit().bold()); Text(lesson.endsAt).font(.caption2.monospacedDigit()).foregroundStyle(.secondary) }
             }
         }.transition(.move(edge: .bottom).combined(with: .opacity)).contentShape(RoundedRectangle(cornerRadius: 25))
     }
+    private var lessonColor: Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral, AppTheme.gold][abs(lesson.order - 1) % 5] }
+    private var lessonSymbol: String { ["book.closed.fill", "function", "globe.europe.africa.fill", "text.book.closed.fill", "atom"][abs(lesson.order - 1) % 5] }
 }

@@ -38,7 +38,7 @@ struct ProfileView: View {
 
     private var profileHero: some View {
         ZStack(alignment: .bottomLeading) {
-            LinearGradient(colors: [accent.opacity(0.82), accent, AppTheme.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [AppTheme.deepViolet, accent, AppTheme.cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
             Circle().fill(.white.opacity(0.12)).frame(width: 190).offset(x: 225, y: -55)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
@@ -67,8 +67,7 @@ struct ProfileView: View {
                 HStack(alignment: .top, spacing: 9) {
                     ForEach(pinned) { achievement in
                         VStack(spacing: 8) {
-                            Image(systemName: achievement.symbol).font(.title2.bold()).foregroundStyle(rarityColor(achievement.rarity)).frame(width: 52, height: 52)
-                                .background(rarityColor(achievement.rarity).opacity(0.12), in: RoundedRectangle(cornerRadius: 17))
+                            AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 58)
                             Text(achievement.title).font(.caption2.bold()).multilineTextAlignment(.center).lineLimit(2).frame(height: 30, alignment: .top)
                         }.frame(maxWidth: .infinity)
                     }
@@ -104,7 +103,7 @@ struct ProfileView: View {
                 Button { togglePin(achievement) } label: {
                     VStack(alignment: .leading, spacing: 9) {
                         HStack {
-                            Image(systemName: unlocked ? achievement.symbol : "lock.fill").font(.title3.bold()).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
+                            AchievementBadgeArtwork(achievement: achievement, isUnlocked: unlocked, size: 52)
                             Spacer()
                             if store.pinnedAchievementIDs.contains(achievement.id) { Image(systemName: "pin.fill").font(.caption).foregroundStyle(accent) }
                         }
@@ -148,6 +147,90 @@ struct ProfileView: View {
     private var initials: String { store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased().isEmpty ? "У" : store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
     private var accent: Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][store.accentIndex % 4] }
     private func rarityColor(_ rarity: AchievementRarity) -> Color { switch rarity { case .common: .secondary; case .rare: .blue; case .epic: AppTheme.violet; case .legendary: .orange } }
+}
+
+struct AchievementBadgeArtwork: View {
+    let achievement: Achievement
+    let isUnlocked: Bool
+    var size: CGFloat = 56
+
+    private var seed: Int {
+        achievement.id.unicodeScalars.enumerated().reduce(17) { partial, item in
+            (partial &* 31 &+ Int(item.element.value) &* (item.offset + 1)) & 0x7fffffff
+        }
+    }
+    private var baseHue: Double { Double(seed % 360) / 360 }
+    private var secondaryHue: Double { (baseHue + 0.10 + Double((seed / 7) % 25) / 100).truncatingRemainder(dividingBy: 1) }
+    private var points: Int { 5 + seed % 5 }
+    private var rotation: Double { Double(seed % 45) }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.31, style: .continuous)
+                .fill(backgroundGradient)
+            pattern.opacity(isUnlocked ? 0.42 : 0.12)
+            Circle().fill(.white.opacity(isUnlocked ? 0.18 : 0.07)).frame(width: size * 0.68)
+                .overlay { Circle().stroke(.white.opacity(0.24), lineWidth: max(1, size * 0.018)) }
+            Image(systemName: isUnlocked ? achievement.symbol : "lock.fill")
+                .font(.system(size: size * 0.35, weight: .black, design: .rounded))
+                .foregroundStyle(isUnlocked ? Color.white : Color.secondary)
+                .shadow(color: .black.opacity(isUnlocked ? 0.24 : 0), radius: 2, y: 1)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Text(shortRank).font(.system(size: max(7, size * 0.13), weight: .black, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(.white).padding(.horizontal, size * 0.08).frame(minHeight: size * 0.21)
+                        .background(.black.opacity(0.28), in: Capsule())
+                }
+            }.padding(size * 0.09)
+        }
+        .frame(width: size, height: size)
+        .saturation(isUnlocked ? 1 : 0)
+        .overlay { RoundedRectangle(cornerRadius: size * 0.31, style: .continuous).strokeBorder(borderGradient, lineWidth: rarityLineWidth) }
+        .shadow(color: isUnlocked ? primaryColor.opacity(0.28) : .clear, radius: size * 0.13, y: size * 0.06)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(achievement.title), \(achievement.rarity.title)")
+    }
+
+    @ViewBuilder private var pattern: some View {
+        switch seed % 6 {
+        case 0:
+            ForEach(0..<points, id: \.self) { index in
+                Capsule().fill(.white).frame(width: size * 0.055, height: size * 0.82)
+                    .rotationEffect(.degrees(Double(index) * 180 / Double(points) + rotation))
+            }
+        case 1:
+            ZStack {
+                ForEach(1..<4, id: \.self) { index in Circle().stroke(.white, lineWidth: size * 0.025).frame(width: size * CGFloat(index) * 0.25) }
+            }
+        case 2:
+            ForEach(0..<4, id: \.self) { index in
+                RoundedRectangle(cornerRadius: size * 0.07).stroke(.white, lineWidth: size * 0.025)
+                    .frame(width: size * (0.25 + CGFloat(index) * 0.18), height: size * (0.25 + CGFloat(index) * 0.18))
+                    .rotationEffect(.degrees(rotation + Double(index * 12)))
+            }
+        case 3:
+            HStack(spacing: size * 0.08) { ForEach(0..<5, id: \.self) { _ in Capsule().fill(.white).frame(width: size * 0.065, height: size * 0.78) } }
+                .rotationEffect(.degrees(rotation - 22))
+        case 4:
+            ZStack { ForEach(0..<points, id: \.self) { index in Circle().fill(.white).frame(width: size * 0.11).offset(y: -size * 0.39).rotationEffect(.degrees(Double(index) * 360 / Double(points) + rotation)) } }
+        default:
+            Image(systemName: "sparkles").font(.system(size: size * 0.82, weight: .thin)).foregroundStyle(.white).rotationEffect(.degrees(rotation))
+        }
+    }
+
+    private var primaryColor: Color { isUnlocked ? Color(hue: baseHue, saturation: raritySaturation, brightness: rarityBrightness) : Color.gray.opacity(0.55) }
+    private var secondaryColor: Color { isUnlocked ? Color(hue: secondaryHue, saturation: min(1, raritySaturation + 0.08), brightness: min(1, rarityBrightness + 0.08)) : Color.gray.opacity(0.3) }
+    private var backgroundGradient: LinearGradient { LinearGradient(colors: [primaryColor, secondaryColor], startPoint: gradientStart, endPoint: gradientEnd) }
+    private var borderGradient: LinearGradient { LinearGradient(colors: [.white.opacity(isUnlocked ? 0.82 : 0.25), rarityAccent, .white.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing) }
+    private var gradientStart: UnitPoint { seed % 2 == 0 ? .topLeading : .topTrailing }
+    private var gradientEnd: UnitPoint { seed % 2 == 0 ? .bottomTrailing : .bottomLeading }
+    private var raritySaturation: Double { switch achievement.rarity { case .common: 0.48; case .rare: 0.66; case .epic: 0.78; case .legendary: 0.88 } }
+    private var rarityBrightness: Double { switch achievement.rarity { case .common: 0.72; case .rare: 0.80; case .epic: 0.76; case .legendary: 0.95 } }
+    private var rarityLineWidth: CGFloat { switch achievement.rarity { case .common: 1; case .rare: 1.5; case .epic: 2; case .legendary: 2.5 } }
+    private var rarityAccent: Color { switch achievement.rarity { case .common: .white.opacity(0.45); case .rare: .cyan; case .epic: .purple; case .legendary: .yellow } }
+    private var shortRank: String { achievement.id.split(separator: "-").last.map(String.init) ?? "1" }
 }
 
 private struct EditProfileView: View {

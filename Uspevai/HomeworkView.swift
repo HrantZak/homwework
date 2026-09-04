@@ -14,6 +14,9 @@ struct HomeworkView: View {
         NavigationStack {
             List {
                 Section {
+                    homeworkSummary.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                }
+                Section {
                     Picker("Фильтр", selection: $filter) { Text("Все").tag(0); Text("Активные").tag(1); Text("Готово").tag(2) }
                         .pickerStyle(.segmented)
                 }
@@ -38,6 +41,27 @@ struct HomeworkView: View {
                 .navigationTitle("Задания").toolbar { Button { showAdd = true } label: { Image(systemName: "plus") } }
                 .sheet(isPresented: $showAdd) { AddHomeworkView() }
         }
+    }
+
+    private var homeworkSummary: some View {
+        let done = store.homework.filter(\.isDone).count
+        let active = store.homework.count - done
+        return ZStack(alignment: .bottomLeading) {
+            AppTheme.heroGradient
+            Circle().fill(.white.opacity(0.12)).frame(width: 130).offset(x: 250, y: -42)
+            VStack(alignment: .leading, spacing: 13) {
+                Label("МОЙ ПРОГРЕСС", systemImage: "checkmark.seal.fill").font(.caption.bold()).tracking(1.2).opacity(0.78)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(active)").font(.system(size: 36, weight: .heavy, design: .rounded)).contentTransition(.numericText())
+                    Text(active == 1 ? "задание осталось" : "заданий осталось").font(.subheadline.bold()).opacity(0.82)
+                    Spacer()
+                    Text("\(done) готово").font(.caption.bold()).padding(.horizontal, 11).frame(height: 32).background(.white.opacity(0.13), in: Capsule())
+                }
+                ProgressView(value: Double(done), total: Double(max(1, store.homework.count))).tint(.white)
+            }.foregroundStyle(.white).padding(20)
+        }.frame(height: 150).clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 28).stroke(.white.opacity(0.16)) }
+            .shadow(color: AppTheme.violet.opacity(0.25), radius: 20, y: 10)
     }
 
     private func dueText(_ date: Date, done: Bool) -> String {

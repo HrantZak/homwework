@@ -1,11 +1,16 @@
 import SwiftUI
 
 enum AppTheme {
-    static let violet = Color(red: 0.43, green: 0.31, blue: 0.95)
-    static let coral = Color(red: 1.0, green: 0.46, blue: 0.36)
-    static let mint = Color(red: 0.22, green: 0.78, blue: 0.65)
+    static let violet = Color(red: 0.38, green: 0.24, blue: 0.96)
+    static let deepViolet = Color(red: 0.16, green: 0.08, blue: 0.45)
+    static let coral = Color(red: 1.0, green: 0.38, blue: 0.39)
+    static let mint = Color(red: 0.10, green: 0.76, blue: 0.61)
+    static let cyan = Color(red: 0.12, green: 0.68, blue: 0.98)
+    static let gold = Color(red: 1.0, green: 0.68, blue: 0.16)
     static let background = Color(uiColor: .systemGroupedBackground)
-    static let blue = Color(red: 0.15, green: 0.48, blue: 1.0)
+    static let blue = Color(red: 0.10, green: 0.43, blue: 1.0)
+    static let heroGradient = LinearGradient(colors: [deepViolet, violet, blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let actionGradient = LinearGradient(colors: [violet, blue], startPoint: .leading, endPoint: .trailing)
 }
 
 struct SoftCard<Content: View>: View {
@@ -13,10 +18,14 @@ struct SoftCard<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         content.padding(18)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 25, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 25, style: .continuous).fill(LinearGradient(colors: [.white.opacity(0.07), AppTheme.violet.opacity(0.018), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)).allowsHitTesting(false) }
-            .overlay { RoundedRectangle(cornerRadius: 25, style: .continuous).stroke(.primary.opacity(0.055), lineWidth: 1) }
-            .shadow(color: .black.opacity(0.028), radius: 5, y: 2)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(LinearGradient(colors: [.white.opacity(0.16), AppTheme.violet.opacity(0.035), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .allowsHitTesting(false)
+            }
+            .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(LinearGradient(colors: [.white.opacity(0.34), .primary.opacity(0.07), AppTheme.violet.opacity(0.11)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1) }
+            .shadow(color: AppTheme.deepViolet.opacity(0.07), radius: 14, y: 7)
     }
 }
 
@@ -24,8 +33,41 @@ struct AnimatedAppBackground: View {
     var body: some View {
         ZStack {
             AppTheme.background
-            LinearGradient(colors: [AppTheme.violet.opacity(0.07), .clear, AppTheme.mint.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(colors: [AppTheme.violet.opacity(0.10), .clear, AppTheme.cyan.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            Circle().fill(AppTheme.violet.opacity(0.10)).frame(width: 310).blur(radius: 80).offset(x: 170, y: -330)
+            Circle().fill(AppTheme.cyan.opacity(0.08)).frame(width: 280).blur(radius: 90).offset(x: -180, y: 310)
         }.ignoresSafeArea()
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var symbol: String? = nil
+
+    var body: some View {
+        HStack(spacing: 11) {
+            if let symbol {
+                Image(systemName: symbol).font(.subheadline.bold()).foregroundStyle(.white)
+                    .frame(width: 34, height: 34).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 11))
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.title3.bold())
+                if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+        }.accessibilityElement(children: .combine)
+    }
+}
+
+struct StatusPill: View {
+    let title: String
+    let symbol: String
+    var color: Color = AppTheme.violet
+
+    var body: some View {
+        Label(title, systemImage: symbol).font(.caption.bold()).foregroundStyle(color)
+            .padding(.horizontal, 11).frame(height: 32).background(color.opacity(0.11), in: Capsule())
     }
 }
 

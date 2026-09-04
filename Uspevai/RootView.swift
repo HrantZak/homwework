@@ -14,7 +14,7 @@ struct RootView: View {
                 GradebookView().tabItem { Label("Журнал", systemImage: "tablecells") }.tag(2)
                 HomeworkView().tabItem { Label("Задания", systemImage: "checkmark.circle") }.tag(3)
                 ProfileView().tabItem { Label("Профиль", systemImage: "person.crop.circle.fill") }.tag(4)
-            }.tint(AppTheme.violet).toolbarBackground(.ultraThinMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
+            }.tint(AppTheme.violet).toolbarBackground(.regularMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
                 .sensoryFeedback(.selection, trigger: selection)
             if showLaunch { LaunchView().transition(.opacity.combined(with: .scale(scale: 1.08))) }
         }.task {
