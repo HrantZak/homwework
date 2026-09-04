@@ -14,13 +14,14 @@ struct CommunityView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 communityHero
-                Picker("Раздел", selection: $section) { Text("Мой профиль").tag(0); Text("Друзья").tag(1); Text("Все").tag(2) }.pickerStyle(.segmented)
+                Picker("Раздел", selection: $section) { Text("Профиль").tag(0); Text("Друзья").tag(1); Text("Все").tag(2); Text("Чаты").tag(3) }.pickerStyle(.segmented)
                 if section == 0 { publishCard }
                 else if section == 1 {
                     searchCard
                     if let profile = cloud.foundProfile { profileCard(profile, canAdd: true) }
                     friendsSection
-                } else { allUsersSection }
+                } else if section == 2 { allUsersSection }
+                else { MessengerView(friends: cloud.friends) }
             }.padding()
         }
         .background { AnimatedAppBackground() }
@@ -106,7 +107,10 @@ struct CommunityView: View {
                     }
                     Spacer()
                     if canAdd { Button("Добавить") { Task { await cloud.add(profile: profile) } }.buttonStyle(.borderedProminent).tint(AppTheme.violet) }
-                    else { Button(role: .destructive) { cloud.removeFriend(profile) } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга") }
+                    else {
+                        NavigationLink { StudyChatView(friend: profile) } label: { Image(systemName: "message.fill") }.buttonStyle(.borderedProminent).tint(AppTheme.violet).accessibilityLabel("Написать")
+                        Button(role: .destructive) { cloud.removeFriend(profile) } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга")
+                    }
                 }
             }
         }
@@ -122,6 +126,7 @@ struct FriendProfileView: View {
     let profile: PublicStudentProfile
     var body: some View { ScrollView { VStack(spacing: 18) {
         ZStack { AppTheme.heroGradient; VStack(spacing: 10) { AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 90) { Text(initials).font(profileFont(size: 28).bold()).foregroundStyle(.white).frame(width: 70, height: 70).background(AppTheme.deepViolet, in: Circle()) }; Text(profile.name).font(profileFont(size: 22).bold()); Text(profile.title).font(profileFont(size: 15).bold()).foregroundStyle(AppTheme.gold); Text(profile.bio).font(profileFont(size: 12)).opacity(0.8) }.foregroundStyle(.white).padding() }.frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 30))
+        NavigationLink { StudyChatView(friend: profile) } label: { Label("Написать сообщение", systemImage: "message.fill").font(profileFont(size: 17).bold()).frame(maxWidth: .infinity).padding(.vertical, 14).foregroundStyle(.white).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 18)) }.buttonStyle(ScalePressStyle())
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) { metric("Средний балл", profile.gradeAverage == 0 ? "—" : String(format: "%.2f", profile.gradeAverage), "chart.line.uptrend.xyaxis"); metric("Всего оценок", "\(profile.gradeCount)", "star.fill"); metric("Оценок 9–10", "\(profile.excellentCount)", "crown.fill"); metric("Задания", "\(profile.homeworkPercent)%", "checkmark.circle.fill") }
         SoftCard { VStack(alignment: .leading, spacing: 12) { Label("Лучшие достижения", systemImage: "sparkles").font(profileFont(size: 17).bold()); HStack { ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 62) } } } } }
     }.padding() }.font(profileFont).background { AnimatedAppBackground() }.navigationTitle("Профиль").navigationBarTitleDisplayMode(.inline) }

@@ -9,8 +9,8 @@ packages:
     exactVersion: 11.15.0
 settings:
   base:
-    MARKETING_VERSION: 9.0.0
-    CURRENT_PROJECT_VERSION: 32
+    MARKETING_VERSION: 10.0.0
+    CURRENT_PROJECT_VERSION: 33
     SWIFT_VERSION: 5.10
 targets:
   Uspevai:
