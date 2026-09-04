@@ -5,6 +5,7 @@ struct CommunityView: View {
     @StateObject private var cloud = FirebaseProfileService()
     @AppStorage("communityPublished") private var isPublished = false
     @State private var searchCode = ""
+    @State private var section = 0
     let streak: Int
     let level: Int
     let pinnedAchievementIDs: [String]
@@ -13,10 +14,13 @@ struct CommunityView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 communityHero
-                publishCard
-                searchCard
-                if let profile = cloud.foundProfile { profileCard(profile, canAdd: true) }
-                friendsSection
+                Picker("Раздел", selection: $section) { Text("Мой профиль").tag(0); Text("Друзья").tag(1); Text("Все").tag(2) }.pickerStyle(.segmented)
+                if section == 0 { publishCard }
+                else if section == 1 {
+                    searchCard
+                    if let profile = cloud.foundProfile { profileCard(profile, canAdd: true) }
+                    friendsSection
+                } else { allUsersSection }
             }.padding()
         }
         .background { AnimatedAppBackground() }
@@ -53,7 +57,7 @@ struct CommunityView: View {
                     Label(isPublished ? "Опубликовать изменения" : "Сохранить приватность", systemImage: isPublished ? "arrow.triangle.2.circlepath" : "eye.slash.fill")
                         .font(.headline).frame(maxWidth: .infinity).frame(height: 48).foregroundStyle(.white).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 15))
                 }.buttonStyle(ScalePressStyle()).disabled(!cloud.accountReady || cloud.isWorking).opacity(cloud.accountReady ? 1 : 0.5)
-                Text("Публикуются только имя, девиз, огонёк, уровень и три выбранных достижения. Расписание, оценки и задания остаются на вашем устройстве.").font(.caption).foregroundStyle(.secondary)
+                Text("Публикуются имя, девиз, титул, рамка, огонёк, достижения и только общая статистика успеваемости. Сами оценки, задания и расписание остаются на устройстве.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -78,28 +82,48 @@ struct CommunityView: View {
         }
     }
 
+    private var allUsersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Все ученики", subtitle: "Открытые профили сообщества", symbol: "globe.europe.africa.fill")
+            ForEach(cloud.allProfiles) { profile in profileCard(profile, canAdd: !cloud.friends.contains(profile)) }
+            if cloud.allProfiles.isEmpty { ContentUnavailableView("Пока никого нет", systemImage: "person.3", description: Text("Профили появятся после первой публикации")) }
+        }
+    }
+
     private func profileCard(_ profile: PublicStudentProfile, canAdd: Bool) -> some View {
         SoftCard {
             VStack(alignment: .leading, spacing: 13) {
-                HStack(spacing: 12) {
-                    Text(initials(profile.name)).font(.headline.bold()).foregroundStyle(.white).frame(width: 50, height: 50).background(profileAccent(profile).gradient, in: RoundedRectangle(cornerRadius: 16))
-                    VStack(alignment: .leading, spacing: 3) { Text(profile.name).font(.headline); Text(profile.bio.isEmpty ? "Ученик Успевай" : profile.bio).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 3) { Label("\(profile.streak)", systemImage: "flame.fill").foregroundStyle(.orange); Text("Ур. \(profile.level)").foregroundStyle(.secondary) }.font(.caption.bold())
-                }
+                NavigationLink { FriendProfileView(profile: profile) } label: {
+                    HStack(spacing: 12) {
+                        AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 54) { Text(initials(profile.name)).font(.headline.bold()).foregroundStyle(.white).frame(width: 42, height: 42).background(profileAccent(profile).gradient, in: Circle()) }
+                        VStack(alignment: .leading, spacing: 3) { Text(profile.name).font(.headline); Text(profile.title).font(.caption.bold()).foregroundStyle(AppTheme.violet); Text(profile.bio.isEmpty ? "Ученик Успевай" : profile.bio).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
+                        Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                    }
+                }.buttonStyle(.plain)
                 HStack(spacing: 9) {
                     ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in
                         if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 44) }
                     }
                     Spacer()
-                    if canAdd { Button("Добавить") { Task { await cloud.addFoundProfile() } }.buttonStyle(.borderedProminent).tint(AppTheme.violet) }
+                    if canAdd { Button("Добавить") { Task { await cloud.add(profile: profile) } }.buttonStyle(.borderedProminent).tint(AppTheme.violet) }
                     else { Button(role: .destructive) { cloud.removeFriend(profile) } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга") }
                 }
             }
         }
     }
 
-    private func publish() async { await cloud.publish(name: store.studentName, bio: store.profileBio, streak: streak, level: level, accentIndex: store.accentIndex, pinnedAchievementIDs: Array(pinnedAchievementIDs.prefix(3)), isPublic: isPublished) }
+    private func publish() async { let average = store.grades.isEmpty ? 0 : Double(store.grades.map(\.value).reduce(0,+)) / Double(store.grades.count); let homeworkPercent = store.homework.isEmpty ? 0 : Int(Double(store.homework.filter(\.isDone).count) / Double(store.homework.count) * 100); await cloud.publish(name: store.studentName, bio: store.profileBio, streak: streak, level: level, accentIndex: store.accentIndex, pinnedAchievementIDs: Array(pinnedAchievementIDs.prefix(3)), title: store.profileTitle, ringID: store.equippedRingID, gradeAverage: average, gradeCount: store.grades.count, excellentCount: store.grades.filter { $0.value >= 9 }.count, homeworkPercent: homeworkPercent, isPublic: isPublished) }
     private func initials(_ name: String) -> String { let value = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased(); return value.isEmpty ? "У" : value }
     private func profileAccent(_ profile: PublicStudentProfile) -> Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][abs(profile.accentIndex) % 4] }
+}
+
+struct FriendProfileView: View {
+    let profile: PublicStudentProfile
+    var body: some View { ScrollView { VStack(spacing: 18) {
+        ZStack { AppTheme.heroGradient; VStack(spacing: 10) { AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 90) { Text(initials).font(.title.bold()).foregroundStyle(.white).frame(width: 70, height: 70).background(AppTheme.deepViolet, in: Circle()) }; Text(profile.name).font(.title2.bold()); Text(profile.title).font(.subheadline.bold()).foregroundStyle(AppTheme.gold); Text(profile.bio).font(.caption).opacity(0.8) }.foregroundStyle(.white).padding() }.frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 30))
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) { metric("Средний балл", profile.gradeAverage == 0 ? "—" : String(format: "%.2f", profile.gradeAverage), "chart.line.uptrend.xyaxis"); metric("Всего оценок", "\(profile.gradeCount)", "star.fill"); metric("Оценок 9–10", "\(profile.excellentCount)", "crown.fill"); metric("Задания", "\(profile.homeworkPercent)%", "checkmark.circle.fill") }
+        SoftCard { VStack(alignment: .leading, spacing: 12) { Label("Лучшие достижения", systemImage: "sparkles").font(.headline); HStack { ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 62) } } } } }
+    }.padding() }.background { AnimatedAppBackground() }.navigationTitle("Профиль").navigationBarTitleDisplayMode(.inline) }
+    private func metric(_ title: String, _ value: String, _ symbol: String) -> some View { SoftCard { VStack(alignment: .leading, spacing: 7) { Image(systemName: symbol).foregroundStyle(AppTheme.violet); Text(value).font(.title2.bold()); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }
+    private var initials: String { let value = profile.name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased(); return value.isEmpty ? "У" : value }
 }

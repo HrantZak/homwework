@@ -11,5 +11,6 @@
   <key>UILaunchScreen</key><dict><key>UIColorName</key><string>AccentColor</string></dict>
   <key>NSPhotoLibraryUsageDescription</key><string>Выберите фотографию расписания для распознавания уроков.</string>
   <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+  <key>UIAppFonts</key><array><string>Monocraft.ttf</string></array>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 </dict></plist>

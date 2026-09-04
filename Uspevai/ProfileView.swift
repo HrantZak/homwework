@@ -49,11 +49,13 @@ struct ProfileView: View {
             Circle().fill(.white.opacity(0.12)).frame(width: 190).offset(x: 225, y: -55)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
-                    Text(initials).font(.system(size: 28, weight: .heavy, design: .rounded)).frame(width: 66, height: 66)
-                        .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 22)).overlay { RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.2)) }
+                    AvatarRingView(ringID: store.equippedRingID.isEmpty ? "ring-0" : store.equippedRingID, size: 72) {
+                        Text(initials).font(.system(size: 25, weight: .heavy, design: .rounded)).frame(width: 56, height: 56).background(.white.opacity(0.18), in: Circle())
+                    }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(store.studentName).font(.title2.bold())
-                        Text(store.profileBio).font(.subheadline).opacity(0.8).lineLimit(2)
+                        Text(store.profileTitle).font(.caption.bold()).foregroundStyle(AppTheme.gold)
+                        Text(store.profileBio).font(.subheadline).opacity(0.8).lineLimit(1)
                     }.padding(.top, 5)
                     Spacer()
                 }

@@ -36,6 +36,7 @@ struct ScheduleView: View {
             }
             .background { AnimatedAppBackground() }.navigationTitle("Расписание")
                 .toolbar {
+                    NavigationLink { GradebookView() } label: { Image(systemName: "chart.bar.doc.horizontal.fill") }.accessibilityLabel("Журнал оценок")
                     Menu {
                         Button { showScheduleManager = true } label: { Label("Всё расписание", systemImage: "tablecells") }
                         Button { showImport = true } label: { Label("Импорт с фото", systemImage: "camera.viewfinder") }

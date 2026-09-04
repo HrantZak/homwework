@@ -12,6 +12,12 @@ struct PublicStudentProfile: Identifiable, Equatable {
     let level: Int
     let accentIndex: Int
     let pinnedAchievementIDs: [String]
+    let title: String
+    let ringID: String
+    let gradeAverage: Double
+    let gradeCount: Int
+    let excellentCount: Int
+    let homeworkPercent: Int
     let updatedAt: Date
 }
 
@@ -31,6 +37,7 @@ final class FirebaseProfileService: ObservableObject {
     @Published private(set) var accountReady = false
     @Published private(set) var isWorking = false
     @Published private(set) var friends: [PublicStudentProfile] = []
+    @Published private(set) var allProfiles: [PublicStudentProfile] = []
     @Published var foundProfile: PublicStudentProfile?
     @Published var message = ""
 
@@ -59,11 +66,11 @@ final class FirebaseProfileService: ObservableObject {
             if Auth.auth().currentUser == nil { _ = try await Auth.auth().signInAnonymously() }
             accountReady = Auth.auth().currentUser != nil
             message = accountReady ? "Firebase подключён" : "Не удалось войти"
-            if accountReady { await loadFriends() }
+            if accountReady { await loadFriends(); await loadAllProfiles() }
         } catch { accountReady = false; message = friendly(error) }
     }
 
-    func publish(name: String, bio: String, streak: Int, level: Int, accentIndex: Int, pinnedAchievementIDs: [String], isPublic: Bool) async {
+    func publish(name: String, bio: String, streak: Int, level: Int, accentIndex: Int, pinnedAchievementIDs: [String], title: String, ringID: String, gradeAverage: Double, gradeCount: Int, excellentCount: Int, homeworkPercent: Int, isPublic: Bool) async {
         guard let database, let userID = Auth.auth().currentUser?.uid else { message = "Firebase ещё не подключён"; return }
         isWorking = true
         defer { isWorking = false }
@@ -71,6 +78,8 @@ final class FirebaseProfileService: ObservableObject {
             "ownerID": userID, "code": profileCode, "name": name, "bio": bio,
             "streak": streak, "level": level, "accentIndex": accentIndex,
             "pinnedAchievements": Array(pinnedAchievementIDs.prefix(3)),
+            "title": title, "ringID": ringID, "gradeAverage": gradeAverage,
+            "gradeCount": gradeCount, "excellentCount": excellentCount, "homeworkPercent": homeworkPercent,
             "isPublic": isPublic, "updatedAt": FieldValue.serverTimestamp()
         ]
         do {
@@ -97,6 +106,10 @@ final class FirebaseProfileService: ObservableObject {
 
     func addFoundProfile() async {
         guard let foundProfile else { return }
+        await add(profile: foundProfile)
+    }
+
+    func add(profile foundProfile: PublicStudentProfile) async {
         guard foundProfile.ownerID != Auth.auth().currentUser?.uid else { message = "Это ваш собственный профиль"; return }
         var codes = friendCodes
         if !codes.contains(foundProfile.id) { codes.append(foundProfile.id); friendCodes = codes }
@@ -126,9 +139,18 @@ final class FirebaseProfileService: ObservableObject {
         friendCodes = availableCodes
     }
 
+    func loadAllProfiles() async {
+        guard let database else { return }
+        do {
+            let snapshot = try await database.collection("profiles").whereField("isPublic", isEqualTo: true).limit(to: 50).getDocuments()
+            let ownID = Auth.auth().currentUser?.uid
+            allProfiles = snapshot.documents.compactMap(Self.profile).filter { $0.ownerID != ownID }.sorted { $0.level > $1.level }
+        } catch { message = friendly(error) }
+    }
+
     private static func profile(from snapshot: DocumentSnapshot) -> PublicStudentProfile? {
         guard let data = snapshot.data(), let name = data["name"] as? String, let ownerID = data["ownerID"] as? String else { return nil }
-        return PublicStudentProfile(id: snapshot.documentID, ownerID: ownerID, name: name, bio: data["bio"] as? String ?? "", streak: number(data["streak"], fallback: 0), level: number(data["level"], fallback: 1), accentIndex: number(data["accentIndex"], fallback: 0), pinnedAchievementIDs: data["pinnedAchievements"] as? [String] ?? [], updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? .distantPast)
+        return PublicStudentProfile(id: snapshot.documentID, ownerID: ownerID, name: name, bio: data["bio"] as? String ?? "", streak: number(data["streak"], fallback: 0), level: number(data["level"], fallback: 1), accentIndex: number(data["accentIndex"], fallback: 0), pinnedAchievementIDs: data["pinnedAchievements"] as? [String] ?? [], title: data["title"] as? String ?? "Ученик", ringID: data["ringID"] as? String ?? "", gradeAverage: (data["gradeAverage"] as? NSNumber)?.doubleValue ?? 0, gradeCount: number(data["gradeCount"], fallback: 0), excellentCount: number(data["excellentCount"], fallback: 0), homeworkPercent: number(data["homeworkPercent"], fallback: 0), updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? .distantPast)
     }
 
     private static func number(_ value: Any?, fallback: Int) -> Int {

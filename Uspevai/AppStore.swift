@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import UserNotifications
 
 @MainActor
@@ -17,6 +18,12 @@ final class AppStore: ObservableObject {
     @Published var profileBio: String { didSet { defaults.set(profileBio, forKey: "profileBio") } }
     @Published var accentIndex: Int { didSet { defaults.set(accentIndex, forKey: "accentIndex") } }
     @Published var pinnedAchievementIDs: [String] { didSet { scheduleSave(pinnedAchievementIDs, key: "pinnedAchievementIDs") } }
+    @Published var purchasedMarketIDs: [String] { didSet { scheduleSave(purchasedMarketIDs, key: "purchasedMarketIDs") } }
+    @Published var equippedRingID: String { didSet { defaults.set(equippedRingID, forKey: "equippedRingID") } }
+    @Published var equippedFontID: String { didSet { defaults.set(equippedFontID, forKey: "equippedFontID") } }
+    @Published var equippedTitleID: String { didSet { defaults.set(equippedTitleID, forKey: "equippedTitleID") } }
+    @Published var spentCoins: Int { didSet { defaults.set(spentCoins, forKey: "spentCoins") } }
+    @Published var adminCoins: Int { didSet { defaults.set(adminCoins, forKey: "adminCoins") } }
 
     private let defaults = UserDefaults.standard
     private var pendingSaves: [String: Task<Void, Never>] = [:]
@@ -36,6 +43,12 @@ final class AppStore: ObservableObject {
         profileBio = defaults.string(forKey: "profileBio") ?? "Иду к цели шаг за шагом"
         accentIndex = defaults.integer(forKey: "accentIndex")
         pinnedAchievementIDs = Self.load([String].self, key: "pinnedAchievementIDs") ?? []
+        purchasedMarketIDs = Self.load([String].self, key: "purchasedMarketIDs") ?? []
+        equippedRingID = defaults.string(forKey: "equippedRingID") ?? ""
+        equippedFontID = defaults.string(forKey: "equippedFontID") ?? ""
+        equippedTitleID = defaults.string(forKey: "equippedTitleID") ?? ""
+        spentCoins = defaults.integer(forKey: "spentCoins")
+        adminCoins = defaults.integer(forKey: "adminCoins")
         if !defaults.bool(forKey: "migratedToTenPointScale") {
             grades = grades.map { old in var updated = old; updated.value = min(10, old.value * 2); return updated }
             defaults.set(true, forKey: "migratedToTenPointScale")
@@ -81,6 +94,36 @@ final class AppStore: ObservableObject {
 
     func override(on date: Date) -> ScheduleOverride? {
         scheduleOverrides.last { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    var earnedCoins: Int {
+        homework.filter(\.isDone).count * 12 + grades.count * 6 + grades.filter { $0.value >= 9 }.count * 4
+    }
+
+    var coinBalance: Int { max(0, earnedCoins + adminCoins - spentCoins) }
+
+    @discardableResult
+    func buy(_ product: MarketProduct) -> Bool {
+        guard !purchasedMarketIDs.contains(product.id), coinBalance >= product.price else { return false }
+        spentCoins += product.price
+        purchasedMarketIDs.append(product.id)
+        equip(product)
+        return true
+    }
+
+    func equip(_ product: MarketProduct) {
+        guard purchasedMarketIDs.contains(product.id) || product.price == 0 else { return }
+        switch product.kind {
+        case .ring: equippedRingID = product.id
+        case .font: equippedFontID = product.id
+        case .title: equippedTitleID = product.id
+        }
+    }
+
+    var profileTitle: String { MarketCatalog.product(id: equippedTitleID)?.name ?? "Ученик нового поколения" }
+    var activeAppFont: Font {
+        guard let product = MarketCatalog.product(id: equippedFontID) else { return .body }
+        return .custom(MarketCatalog.fontFamily(for: product), size: 17, relativeTo: .body)
     }
 
     private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {

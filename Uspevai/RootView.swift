@@ -11,10 +11,10 @@ struct RootView: View {
             TabView(selection: $selection) {
                 TodayView().tabItem { Label("Сегодня", systemImage: "sparkles") }.tag(0)
                 ScheduleView().tabItem { Label("Расписание", systemImage: "calendar") }.tag(1)
-                GradebookView().tabItem { Label("Журнал", systemImage: "tablecells") }.tag(2)
+                MarketplaceView().tabItem { Label("Маркет", systemImage: "bag.fill") }.tag(2)
                 HomeworkView().tabItem { Label("Задания", systemImage: "checkmark.circle") }.tag(3)
                 ProfileView().tabItem { Label("Профиль", systemImage: "person.crop.circle.fill") }.tag(4)
-            }.tint(AppTheme.violet).toolbarBackground(.regularMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
+            }.font(store.activeAppFont).tint(AppTheme.violet).toolbarBackground(.regularMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
                 .sensoryFeedback(.selection, trigger: selection)
             if showLaunch { LaunchView().transition(.opacity.combined(with: .scale(scale: 1.08))) }
         }.task {
