@@ -125,6 +125,10 @@ final class AppStore: ObservableObject {
         guard let product = MarketCatalog.product(id: equippedFontID) else { return .body }
         return .custom(MarketCatalog.fontFamily(for: product), size: 17, relativeTo: .body)
     }
+    func activeFont(size: CGFloat, relativeTo style: Font.TextStyle = .body) -> Font {
+        guard let product = MarketCatalog.product(id: equippedFontID) else { return .system(size: size) }
+        return .custom(MarketCatalog.fontFamily(for: product), size: size, relativeTo: style)
+    }
 
     private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {
         pendingSaves[key]?.cancel()

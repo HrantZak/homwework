@@ -21,7 +21,7 @@ struct ProfileView: View {
                     NavigationLink { CommunityView(streak: studyStreak, level: level, pinnedAchievementIDs: pinned.map(\.id)) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "person.2.wave.2.fill").font(.title2.bold()).foregroundStyle(.white).frame(width: 52, height: 52).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 17))
-                            VStack(alignment: .leading, spacing: 4) { Text("Сообщество Успевай").font(.headline); Text("Найди друзей и посмотри их достижения").font(.caption).opacity(0.78).multilineTextAlignment(.leading) }
+                            VStack(alignment: .leading, spacing: 4) { Text("Сообщество Успевай").font(store.activeFont(size: 17, relativeTo: .headline).bold()); Text("Найди друзей и посмотри их достижения").font(store.activeFont(size: 12, relativeTo: .caption)).opacity(0.78).multilineTextAlignment(.leading) }
                             Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.7)
                         }.padding(17).foregroundStyle(.white).background(LinearGradient(colors: [AppTheme.mint, AppTheme.blue], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 22))
                     }.buttonStyle(ScalePressStyle())
@@ -31,11 +31,12 @@ struct ProfileView: View {
                     achievementGrid
                     NavigationLink { StudentCenterView() } label: {
                         Label("Открыть центр ученика", systemImage: "square.grid.2x2.fill")
-                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
+                            .font(store.activeFont(size: 17, relativeTo: .headline).bold()).frame(maxWidth: .infinity).padding(.vertical, 15)
                             .foregroundStyle(.white).background(accent.gradient, in: RoundedRectangle(cornerRadius: 18))
                     }.buttonStyle(ScalePressStyle())
                 }.padding()
             }
+            .font(store.activeAppFont)
             .background { AnimatedAppBackground() }
             .navigationTitle("Профиль")
             .toolbar { Button { editingProfile = true } label: { Image(systemName: "pencil.circle") }.accessibilityLabel("Изменить профиль") }
@@ -50,12 +51,12 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     AvatarRingView(ringID: store.equippedRingID.isEmpty ? "ring-0" : store.equippedRingID, size: 72) {
-                        Text(initials).font(.system(size: 25, weight: .heavy, design: .rounded)).frame(width: 56, height: 56).background(.white.opacity(0.18), in: Circle())
+                        Text(initials).font(store.activeFont(size: 25, relativeTo: .title2).bold()).frame(width: 56, height: 56).background(.white.opacity(0.18), in: Circle())
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(store.studentName).font(.title2.bold())
-                        Text(store.profileTitle).font(.caption.bold()).foregroundStyle(AppTheme.gold)
-                        Text(store.profileBio).font(.subheadline).opacity(0.8).lineLimit(1)
+                        Text(store.studentName).font(store.activeFont(size: 22, relativeTo: .title2).bold())
+                        Text(store.profileTitle).font(store.activeFont(size: 12, relativeTo: .caption).bold()).foregroundStyle(AppTheme.gold)
+                        Text(store.profileBio).font(store.activeFont(size: 15, relativeTo: .subheadline)).opacity(0.8).lineLimit(1)
                     }.padding(.top, 5)
                     Spacer()
                 }
@@ -64,7 +65,7 @@ struct ProfileView: View {
                     Text("дней подряд").opacity(0.82)
                     Spacer()
                     Text("Уровень \(level)").fontWeight(.bold)
-                }.font(.subheadline.bold()).padding(.horizontal, 13).frame(height: 42).background(.black.opacity(0.13), in: Capsule())
+                }.font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).padding(.horizontal, 13).frame(height: 42).background(.black.opacity(0.13), in: Capsule())
             }.foregroundStyle(.white).padding(21)
         }.frame(height: 190).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: accent.opacity(0.28), radius: 20, y: 10)
     }
@@ -72,15 +73,15 @@ struct ProfileView: View {
     private var showcase: some View {
         SoftCard {
             VStack(alignment: .leading, spacing: 13) {
-                HStack { Label("Витрина", systemImage: "sparkles").font(.headline); Spacer(); Text("Лучшие 3").font(.caption.bold()).foregroundStyle(.secondary) }
+                HStack { Label("Витрина", systemImage: "sparkles").font(store.activeFont(size: 17, relativeTo: .headline).bold()); Spacer(); Text("Лучшие 3").font(store.activeFont(size: 12, relativeTo: .caption).bold()).foregroundStyle(.secondary) }
                 HStack(alignment: .top, spacing: 9) {
                     ForEach(pinned) { achievement in
                         VStack(spacing: 8) {
                             AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 58)
-                            Text(achievement.title).font(.caption2.bold()).multilineTextAlignment(.center).lineLimit(2).frame(height: 30, alignment: .top)
+                            Text(achievement.title).font(store.activeFont(size: 11, relativeTo: .caption2).bold()).multilineTextAlignment(.center).lineLimit(2).frame(height: 30, alignment: .top)
                         }.frame(maxWidth: .infinity)
                     }
-                    if pinned.isEmpty { Text("Выполни первое задание — и здесь появится награда").font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
+                    if pinned.isEmpty { Text("Выполни первое задание — и здесь появится награда").font(store.activeFont(size: 15, relativeTo: .subheadline)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
                 }
             }
         }
@@ -89,9 +90,9 @@ struct ProfileView: View {
     private var progressCard: some View {
         SoftCard {
             VStack(alignment: .leading, spacing: 11) {
-                HStack { Text("Коллекция достижений").font(.headline); Spacer(); Text("\(unlocked.count) / \(achievements.count)").font(.subheadline.bold()).foregroundStyle(accent) }
+                HStack { Text("Коллекция достижений").font(store.activeFont(size: 17, relativeTo: .headline).bold()); Spacer(); Text("\(unlocked.count) / \(achievements.count)").font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).foregroundStyle(accent) }
                 ProgressView(value: Double(unlocked.count), total: Double(achievements.count)).tint(accent)
-                Text("Зарабатывай награды за уроки, оценки, задания и учебную серию.").font(.caption).foregroundStyle(.secondary)
+                Text("Зарабатывай награды за задания, оценки, посещения, экзамены, заметки и коллекцию.").font(store.activeFont(size: 12, relativeTo: .caption)).foregroundStyle(.secondary)
             }
         }
     }
@@ -116,10 +117,10 @@ struct ProfileView: View {
                             Spacer()
                             if store.pinnedAchievementIDs.contains(achievement.id) { Image(systemName: "pin.fill").font(.caption).foregroundStyle(accent) }
                         }
-                        Text(achievement.title).font(.subheadline.bold()).foregroundStyle(.primary).lineLimit(2)
-                        Text(achievement.detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                        Text(achievement.title).font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).foregroundStyle(.primary).lineLimit(2)
+                        Text(achievement.detail).font(store.activeFont(size: 11, relativeTo: .caption2)).foregroundStyle(.secondary).lineLimit(2)
                         ProgressView(value: Double(min(metricValue(achievement.metric), achievement.target)), total: Double(achievement.target)).tint(unlocked ? rarityColor(achievement.rarity) : .gray)
-                        Text(unlocked ? "Получено · нажми, чтобы закрепить" : "\(metricValue(achievement.metric)) из \(achievement.target)").font(.system(size: 10, weight: .semibold)).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
+                        Text(unlocked ? "Получено · нажми, чтобы закрепить" : "\(metricValue(achievement.metric)) из \(achievement.target)").font(store.activeFont(size: 10, relativeTo: .caption2).bold()).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
                     }.padding(14).frame(maxWidth: .infinity, minHeight: 166, alignment: .topLeading)
                         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 21))
                         .overlay { RoundedRectangle(cornerRadius: 21).stroke((unlocked ? rarityColor(achievement.rarity) : Color.primary).opacity(0.13)) }
@@ -131,7 +132,7 @@ struct ProfileView: View {
 
     private func filterButton(_ title: String, rarity: AchievementRarity?) -> some View {
         Button { withAnimation(.snappy) { selectedRarity = rarity } } label: {
-            Text(title).font(.caption.bold()).padding(.horizontal, 14).frame(height: 38)
+            Text(title).font(store.activeFont(size: 12, relativeTo: .caption).bold()).padding(.horizontal, 14).frame(height: 38)
                 .foregroundStyle(selectedRarity == rarity ? .white : .primary).background(selectedRarity == rarity ? accent : Color.primary.opacity(0.07), in: Capsule())
         }.buttonStyle(ScalePressStyle())
     }
@@ -149,13 +150,17 @@ struct ProfileView: View {
         case .lessons: store.lessons.count
         case .streak: studyStreak
         case .profile: store.studentName == "Ученик" ? 0 : 1
+        case .attendance: store.attendance.filter(\.wasPresent).count
+        case .exams: store.exams.count
+        case .notes: store.notes.count
+        case .collection: store.purchasedMarketIDs.count
         }
     }
     private var studyStreak: Int { max(1, min(365, Set(store.homework.filter(\.isDone).compactMap { $0.createdAt.map { Calendar.current.startOfDay(for: $0) } }).count)) }
     private var level: Int { max(1, unlocked.count / 5 + 1) }
     private var initials: String { store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased().isEmpty ? "У" : store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
     private var accent: Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][store.accentIndex % 4] }
-    private func rarityColor(_ rarity: AchievementRarity) -> Color { switch rarity { case .common: .secondary; case .rare: .blue; case .epic: AppTheme.violet; case .legendary: .orange } }
+    private func rarityColor(_ rarity: AchievementRarity) -> Color { switch rarity { case .common: .secondary; case .rare: .blue; case .epic: AppTheme.violet; case .legendary: .orange; case .mythical: .pink } }
 }
 
 struct AchievementBadgeArtwork: View {
@@ -235,10 +240,10 @@ struct AchievementBadgeArtwork: View {
     private var borderGradient: LinearGradient { LinearGradient(colors: [.white.opacity(isUnlocked ? 0.82 : 0.25), rarityAccent, .white.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing) }
     private var gradientStart: UnitPoint { seed % 2 == 0 ? .topLeading : .topTrailing }
     private var gradientEnd: UnitPoint { seed % 2 == 0 ? .bottomTrailing : .bottomLeading }
-    private var raritySaturation: Double { switch achievement.rarity { case .common: 0.48; case .rare: 0.66; case .epic: 0.78; case .legendary: 0.88 } }
-    private var rarityBrightness: Double { switch achievement.rarity { case .common: 0.72; case .rare: 0.80; case .epic: 0.76; case .legendary: 0.95 } }
-    private var rarityLineWidth: CGFloat { switch achievement.rarity { case .common: 1; case .rare: 1.5; case .epic: 2; case .legendary: 2.5 } }
-    private var rarityAccent: Color { switch achievement.rarity { case .common: .white.opacity(0.45); case .rare: .cyan; case .epic: .purple; case .legendary: .yellow } }
+    private var raritySaturation: Double { switch achievement.rarity { case .common: 0.48; case .rare: 0.66; case .epic: 0.78; case .legendary: 0.88; case .mythical: 0.98 } }
+    private var rarityBrightness: Double { switch achievement.rarity { case .common: 0.72; case .rare: 0.80; case .epic: 0.76; case .legendary: 0.95; case .mythical: 1.0 } }
+    private var rarityLineWidth: CGFloat { switch achievement.rarity { case .common: 1; case .rare: 1.5; case .epic: 2; case .legendary: 2.5; case .mythical: 3.5 } }
+    private var rarityAccent: Color { switch achievement.rarity { case .common: .white.opacity(0.45); case .rare: .cyan; case .epic: .purple; case .legendary: .yellow; case .mythical: .pink } }
     private var shortRank: String { achievement.id.split(separator: "-").last.map(String.init) ?? "1" }
 }
 
@@ -259,17 +264,23 @@ enum AchievementCatalog {
         var result: [Achievement] = [
             Achievement(id: "profile", title: "Это я", detail: "Заполни имя в профиле", symbol: "person.crop.circle.badge.checkmark", rarity: .common, target: 1, metric: .profile)
         ]
+        let longTargets = [1, 2, 3, 4, 5, 8, 12, 16, 20, 24, 30, 90]
         let groups: [(String, String, String, Achievement.Metric, [Int])] = [
-            ("Домашний старт", "Выполнено заданий", "checkmark.circle.fill", .completedHomework, Array(1...30)),
-            ("Опыт в журнале", "Добавлено оценок", "star.fill", .grades, Array(1...30)),
-            ("Высший балл", "Оценок 9 или 10", "crown.fill", .excellentGrades, Array(1...25)),
-            ("Школьный ритм", "Уроков в расписании", "calendar.badge.checkmark", .lessons, Array(1...20)),
-            ("Огонь знаний", "Дней учебной серии", "flame.fill", .streak, Array(1...24))
+            ("Домашний старт", "Выполнено заданий", "checkmark.circle.fill", .completedHomework, longTargets),
+            ("Опыт в журнале", "Добавлено оценок", "star.fill", .grades, longTargets),
+            ("Высший балл", "Оценок 9 или 10", "crown.fill", .excellentGrades, longTargets),
+            ("Школьный ритм", "Уроков в расписании", "calendar.badge.checkmark", .lessons, longTargets),
+            ("Огонь знаний", "Дней учебной серии", "flame.fill", .streak, longTargets),
+            ("Всегда вовремя", "Посещено занятий", "clock.badge.checkmark.fill", .attendance, longTargets),
+            ("Готов к проверке", "Добавлено экзаменов", "graduationcap.fill", .exams, longTargets),
+            ("Хранитель мыслей", "Создано заметок", "note.text", .notes, longTargets),
+            ("Коллекционер", "Куплено предметов", "sparkles.rectangle.stack.fill", .collection, longTargets)
         ]
         for group in groups {
             for (index, target) in group.4.enumerated() {
-                let rarity: AchievementRarity = target <= 5 ? .common : target <= 12 ? .rare : target <= 20 ? .epic : .legendary
-                result.append(Achievement(id: "\(group.3)-\(target)", title: "\(group.0) \(roman(index + 1))", detail: "\(group.1): \(target)", symbol: group.2, rarity: rarity, target: target, metric: group.3))
+                let rarity: AchievementRarity = target == 90 ? .mythical : target <= 5 ? .common : target <= 12 ? .rare : target <= 20 ? .epic : .legendary
+                let detail = rarity == .mythical ? "\(group.1): \(target) · в 3 раза сложнее легендарного" : "\(group.1): \(target)"
+                result.append(Achievement(id: "\(group.3)-\(target)", title: "\(group.0) \(roman(index + 1))", detail: detail, symbol: group.2, rarity: rarity, target: target, metric: group.3))
             }
         }
         return result

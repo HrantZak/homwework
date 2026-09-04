@@ -3,7 +3,7 @@ import FirebaseCore
 import FirebaseFirestore
 import Foundation
 
-struct PublicStudentProfile: Identifiable, Equatable {
+struct PublicStudentProfile: Identifiable, Equatable, Sendable {
     let id: String
     let ownerID: String
     let name: String
@@ -14,6 +14,7 @@ struct PublicStudentProfile: Identifiable, Equatable {
     let pinnedAchievementIDs: [String]
     let title: String
     let ringID: String
+    let fontID: String
     let gradeAverage: Double
     let gradeCount: Int
     let excellentCount: Int
@@ -70,7 +71,7 @@ final class FirebaseProfileService: ObservableObject {
         } catch { accountReady = false; message = friendly(error) }
     }
 
-    func publish(name: String, bio: String, streak: Int, level: Int, accentIndex: Int, pinnedAchievementIDs: [String], title: String, ringID: String, gradeAverage: Double, gradeCount: Int, excellentCount: Int, homeworkPercent: Int, isPublic: Bool) async {
+    func publish(name: String, bio: String, streak: Int, level: Int, accentIndex: Int, pinnedAchievementIDs: [String], title: String, ringID: String, fontID: String, gradeAverage: Double, gradeCount: Int, excellentCount: Int, homeworkPercent: Int, isPublic: Bool) async {
         guard let database, let userID = Auth.auth().currentUser?.uid else { message = "Firebase ещё не подключён"; return }
         isWorking = true
         defer { isWorking = false }
@@ -78,7 +79,7 @@ final class FirebaseProfileService: ObservableObject {
             "ownerID": userID, "code": profileCode, "name": name, "bio": bio,
             "streak": streak, "level": level, "accentIndex": accentIndex,
             "pinnedAchievements": Array(pinnedAchievementIDs.prefix(3)),
-            "title": title, "ringID": ringID, "gradeAverage": gradeAverage,
+            "title": title, "ringID": ringID, "fontID": fontID, "gradeAverage": gradeAverage,
             "gradeCount": gradeCount, "excellentCount": excellentCount, "homeworkPercent": homeworkPercent,
             "isPublic": isPublic, "updatedAt": FieldValue.serverTimestamp()
         ]
@@ -150,7 +151,7 @@ final class FirebaseProfileService: ObservableObject {
 
     private static func profile(from snapshot: DocumentSnapshot) -> PublicStudentProfile? {
         guard let data = snapshot.data(), let name = data["name"] as? String, let ownerID = data["ownerID"] as? String else { return nil }
-        return PublicStudentProfile(id: snapshot.documentID, ownerID: ownerID, name: name, bio: data["bio"] as? String ?? "", streak: number(data["streak"], fallback: 0), level: number(data["level"], fallback: 1), accentIndex: number(data["accentIndex"], fallback: 0), pinnedAchievementIDs: data["pinnedAchievements"] as? [String] ?? [], title: data["title"] as? String ?? "Ученик", ringID: data["ringID"] as? String ?? "", gradeAverage: (data["gradeAverage"] as? NSNumber)?.doubleValue ?? 0, gradeCount: number(data["gradeCount"], fallback: 0), excellentCount: number(data["excellentCount"], fallback: 0), homeworkPercent: number(data["homeworkPercent"], fallback: 0), updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? .distantPast)
+        return PublicStudentProfile(id: snapshot.documentID, ownerID: ownerID, name: name, bio: data["bio"] as? String ?? "", streak: number(data["streak"], fallback: 0), level: number(data["level"], fallback: 1), accentIndex: number(data["accentIndex"], fallback: 0), pinnedAchievementIDs: data["pinnedAchievements"] as? [String] ?? [], title: data["title"] as? String ?? "Ученик", ringID: data["ringID"] as? String ?? "", fontID: data["fontID"] as? String ?? "", gradeAverage: (data["gradeAverage"] as? NSNumber)?.doubleValue ?? 0, gradeCount: number(data["gradeCount"], fallback: 0), excellentCount: number(data["excellentCount"], fallback: 0), homeworkPercent: number(data["homeworkPercent"], fallback: 0), updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? .distantPast)
     }
 
     private static func number(_ value: Any?, fallback: Int) -> Int {

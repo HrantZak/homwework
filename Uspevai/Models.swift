@@ -45,10 +45,10 @@ struct ScheduleOverride: Identifiable, Codable, Hashable, Sendable {
 }
 
 enum AchievementRarity: String, Codable, CaseIterable, Sendable {
-    case common, rare, epic, legendary
+    case common, rare, epic, legendary, mythical
 
     var title: String {
-        switch self { case .common: "Обычное"; case .rare: "Редкое"; case .epic: "Эпическое"; case .legendary: "Легендарное" }
+        switch self { case .common: "Обычное"; case .rare: "Редкое"; case .epic: "Эпическое"; case .legendary: "Легендарное"; case .mythical: "Мифическое" }
     }
 }
 
@@ -61,7 +61,7 @@ struct Achievement: Identifiable, Hashable, Sendable {
     let target: Int
     let metric: Metric
 
-    enum Metric: Hashable, Sendable { case completedHomework, grades, excellentGrades, lessons, streak, profile }
+    enum Metric: Hashable, Sendable { case completedHomework, grades, excellentGrades, lessons, streak, profile, attendance, exams, notes, collection }
 }
 
 enum SeedData {

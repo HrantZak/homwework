@@ -34,8 +34,8 @@ struct AnimatedAppBackground: View {
         ZStack {
             AppTheme.background
             LinearGradient(colors: [AppTheme.violet.opacity(0.10), .clear, AppTheme.cyan.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            Circle().fill(AppTheme.violet.opacity(0.10)).frame(width: 310).blur(radius: 80).offset(x: 170, y: -330)
-            Circle().fill(AppTheme.cyan.opacity(0.08)).frame(width: 280).blur(radius: 90).offset(x: -180, y: 310)
+            RadialGradient(colors: [AppTheme.violet.opacity(0.12), .clear], center: UnitPoint(x: 1.05, y: 0.04), startRadius: 0, endRadius: 240)
+            RadialGradient(colors: [AppTheme.cyan.opacity(0.09), .clear], center: UnitPoint(x: -0.08, y: 0.94), startRadius: 0, endRadius: 230)
         }.ignoresSafeArea()
     }
 }

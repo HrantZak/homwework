@@ -57,7 +57,7 @@ struct CommunityView: View {
                     Label(isPublished ? "Опубликовать изменения" : "Сохранить приватность", systemImage: isPublished ? "arrow.triangle.2.circlepath" : "eye.slash.fill")
                         .font(.headline).frame(maxWidth: .infinity).frame(height: 48).foregroundStyle(.white).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 15))
                 }.buttonStyle(ScalePressStyle()).disabled(!cloud.accountReady || cloud.isWorking).opacity(cloud.accountReady ? 1 : 0.5)
-                Text("Публикуются имя, девиз, титул, рамка, огонёк, достижения и только общая статистика успеваемости. Сами оценки, задания и расписание остаются на устройстве.").font(.caption).foregroundStyle(.secondary)
+                Text("Публикуются имя, девиз, выбранный шрифт, титул, рамка, огонёк, достижения и только общая статистика успеваемости. Сами оценки, задания и расписание остаются на устройстве.").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -95,8 +95,8 @@ struct CommunityView: View {
             VStack(alignment: .leading, spacing: 13) {
                 NavigationLink { FriendProfileView(profile: profile) } label: {
                     HStack(spacing: 12) {
-                        AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 54) { Text(initials(profile.name)).font(.headline.bold()).foregroundStyle(.white).frame(width: 42, height: 42).background(profileAccent(profile).gradient, in: Circle()) }
-                        VStack(alignment: .leading, spacing: 3) { Text(profile.name).font(.headline); Text(profile.title).font(.caption.bold()).foregroundStyle(AppTheme.violet); Text(profile.bio.isEmpty ? "Ученик Успевай" : profile.bio).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
+                        AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 54, animated: false) { Text(initials(profile.name)).font(profileFont(profile, size: 17)).foregroundStyle(.white).frame(width: 42, height: 42).background(profileAccent(profile).gradient, in: Circle()) }
+                        VStack(alignment: .leading, spacing: 3) { Text(profile.name).font(profileFont(profile, size: 17)); Text(profile.title).font(profileFont(profile, size: 12).bold()).foregroundStyle(AppTheme.violet); Text(profile.bio.isEmpty ? "Ученик Успевай" : profile.bio).font(profileFont(profile, size: 11)).foregroundStyle(.secondary).lineLimit(1) }
                         Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                     }
                 }.buttonStyle(.plain)
@@ -112,18 +112,21 @@ struct CommunityView: View {
         }
     }
 
-    private func publish() async { let average = store.grades.isEmpty ? 0 : Double(store.grades.map(\.value).reduce(0,+)) / Double(store.grades.count); let homeworkPercent = store.homework.isEmpty ? 0 : Int(Double(store.homework.filter(\.isDone).count) / Double(store.homework.count) * 100); await cloud.publish(name: store.studentName, bio: store.profileBio, streak: streak, level: level, accentIndex: store.accentIndex, pinnedAchievementIDs: Array(pinnedAchievementIDs.prefix(3)), title: store.profileTitle, ringID: store.equippedRingID, gradeAverage: average, gradeCount: store.grades.count, excellentCount: store.grades.filter { $0.value >= 9 }.count, homeworkPercent: homeworkPercent, isPublic: isPublished) }
+    private func publish() async { let average = store.grades.isEmpty ? 0 : Double(store.grades.map(\.value).reduce(0,+)) / Double(store.grades.count); let homeworkPercent = store.homework.isEmpty ? 0 : Int(Double(store.homework.filter(\.isDone).count) / Double(store.homework.count) * 100); await cloud.publish(name: store.studentName, bio: store.profileBio, streak: streak, level: level, accentIndex: store.accentIndex, pinnedAchievementIDs: Array(pinnedAchievementIDs.prefix(3)), title: store.profileTitle, ringID: store.equippedRingID, fontID: store.equippedFontID, gradeAverage: average, gradeCount: store.grades.count, excellentCount: store.grades.filter { $0.value >= 9 }.count, homeworkPercent: homeworkPercent, isPublic: isPublished) }
     private func initials(_ name: String) -> String { let value = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased(); return value.isEmpty ? "У" : value }
     private func profileAccent(_ profile: PublicStudentProfile) -> Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][abs(profile.accentIndex) % 4] }
+    private func profileFont(_ profile: PublicStudentProfile, size: CGFloat) -> Font { guard let product = MarketCatalog.product(id: profile.fontID) else { return .system(size: size) }; return .custom(MarketCatalog.fontFamily(for: product), size: size) }
 }
 
 struct FriendProfileView: View {
     let profile: PublicStudentProfile
     var body: some View { ScrollView { VStack(spacing: 18) {
-        ZStack { AppTheme.heroGradient; VStack(spacing: 10) { AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 90) { Text(initials).font(.title.bold()).foregroundStyle(.white).frame(width: 70, height: 70).background(AppTheme.deepViolet, in: Circle()) }; Text(profile.name).font(.title2.bold()); Text(profile.title).font(.subheadline.bold()).foregroundStyle(AppTheme.gold); Text(profile.bio).font(.caption).opacity(0.8) }.foregroundStyle(.white).padding() }.frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 30))
+        ZStack { AppTheme.heroGradient; VStack(spacing: 10) { AvatarRingView(ringID: profile.ringID.isEmpty ? "ring-0" : profile.ringID, size: 90) { Text(initials).font(profileFont(size: 28).bold()).foregroundStyle(.white).frame(width: 70, height: 70).background(AppTheme.deepViolet, in: Circle()) }; Text(profile.name).font(profileFont(size: 22).bold()); Text(profile.title).font(profileFont(size: 15).bold()).foregroundStyle(AppTheme.gold); Text(profile.bio).font(profileFont(size: 12)).opacity(0.8) }.foregroundStyle(.white).padding() }.frame(height: 240).clipShape(RoundedRectangle(cornerRadius: 30))
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) { metric("Средний балл", profile.gradeAverage == 0 ? "—" : String(format: "%.2f", profile.gradeAverage), "chart.line.uptrend.xyaxis"); metric("Всего оценок", "\(profile.gradeCount)", "star.fill"); metric("Оценок 9–10", "\(profile.excellentCount)", "crown.fill"); metric("Задания", "\(profile.homeworkPercent)%", "checkmark.circle.fill") }
-        SoftCard { VStack(alignment: .leading, spacing: 12) { Label("Лучшие достижения", systemImage: "sparkles").font(.headline); HStack { ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 62) } } } } }
-    }.padding() }.background { AnimatedAppBackground() }.navigationTitle("Профиль").navigationBarTitleDisplayMode(.inline) }
-    private func metric(_ title: String, _ value: String, _ symbol: String) -> some View { SoftCard { VStack(alignment: .leading, spacing: 7) { Image(systemName: symbol).foregroundStyle(AppTheme.violet); Text(value).font(.title2.bold()); Text(title).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }
+        SoftCard { VStack(alignment: .leading, spacing: 12) { Label("Лучшие достижения", systemImage: "sparkles").font(profileFont(size: 17).bold()); HStack { ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 62) } } } } }
+    }.padding() }.font(profileFont).background { AnimatedAppBackground() }.navigationTitle("Профиль").navigationBarTitleDisplayMode(.inline) }
+    private func metric(_ title: String, _ value: String, _ symbol: String) -> some View { SoftCard { VStack(alignment: .leading, spacing: 7) { Image(systemName: symbol).foregroundStyle(AppTheme.violet); Text(value).font(profileFont(size: 22).bold()); Text(title).font(profileFont(size: 12)).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) } }
     private var initials: String { let value = profile.name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased(); return value.isEmpty ? "У" : value }
+    private var profileFont: Font { guard let product = MarketCatalog.product(id: profile.fontID) else { return .body }; return .custom(MarketCatalog.fontFamily(for: product), size: 17, relativeTo: .body) }
+    private func profileFont(size: CGFloat) -> Font { guard let product = MarketCatalog.product(id: profile.fontID) else { return .system(size: size) }; return .custom(MarketCatalog.fontFamily(for: product), size: size) }
 }
