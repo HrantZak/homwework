@@ -36,8 +36,8 @@ enum MarketCatalog {
 struct MarketplaceView: View {
     @EnvironmentObject private var store: AppStore
     @State private var kind: MarketProductKind = .ring
-    @State private var message = ""
     @State private var showAdmin = false
+    @State private var selectedProduct: MarketProduct?
     private var products: [MarketProduct] { MarketCatalog.all.filter { $0.kind == kind } }
 
     var body: some View {
@@ -51,6 +51,7 @@ struct MarketplaceView: View {
             }.background { AnimatedAppBackground() }.navigationTitle("Маркетплейс")
                 .toolbar { Button { showAdmin = true } label: { Image(systemName: "key.fill") }.accessibilityLabel("Панель администратора") }
                 .sheet(isPresented: $showAdmin) { AdminCoinView() }
+                .sheet(item: $selectedProduct) { product in MarketProductDetailView(product: product) }
                 .sensoryFeedback(.success, trigger: store.purchasedMarketIDs.count)
         }
     }
@@ -58,14 +59,14 @@ struct MarketplaceView: View {
     private var walletHero: some View {
         ZStack { LinearGradient(colors: [AppTheme.deepViolet, AppTheme.violet, AppTheme.gold], startPoint: .topLeading, endPoint: .bottomTrailing)
             Circle().fill(.white.opacity(0.12)).frame(width: 170).offset(x: 125, y: -45)
-            VStack(alignment: .leading, spacing: 13) { Text("БАЛАНС").font(.caption.bold()).tracking(1.5).opacity(0.72); HStack { Label("\(store.coinBalance)", systemImage: "seal.fill").font(.system(size: 34, weight: .heavy, design: .rounded)); Spacer(); Text("монет").font(.headline).opacity(0.8) }; Text("+12 за выполненное задание · +6 за оценку · ещё +4 за 9–10").font(.caption).opacity(0.78); if !message.isEmpty { Text(message).font(.caption.bold()) } }.foregroundStyle(.white).padding(22)
+            VStack(alignment: .leading, spacing: 13) { Text("БАЛАНС").font(.caption.bold()).tracking(1.5).opacity(0.72); HStack { Label("\(store.coinBalance)", systemImage: "seal.fill").font(.system(size: 34, weight: .heavy, design: .rounded)); Spacer(); Text("монет").font(.headline).opacity(0.8) }; Text("+12 за выполненное задание · +6 за оценку · ещё +4 за 9–10").font(.caption).opacity(0.78) }.foregroundStyle(.white).padding(22)
         }.frame(height: 170).clipShape(RoundedRectangle(cornerRadius: 30)).shadow(color: AppTheme.violet.opacity(0.28), radius: 20, y: 10)
     }
 
     private func productCard(_ product: MarketProduct) -> some View {
         let owned = store.purchasedMarketIDs.contains(product.id)
         let equipped = equipped(product)
-        return Button { buyOrEquip(product) } label: {
+        return Button { selectedProduct = product } label: {
             VStack(alignment: .leading, spacing: 10) {
                 productPreview(product).frame(maxWidth: .infinity).frame(height: 72)
                 Text(product.name).font(.subheadline.bold()).foregroundStyle(.primary).lineLimit(1)
@@ -77,7 +78,7 @@ struct MarketplaceView: View {
 
     @ViewBuilder private func productPreview(_ product: MarketProduct) -> some View {
         switch product.kind {
-        case .ring: AvatarRingView(ringID: product.id, size: 62) { Image(systemName: "person.fill").foregroundStyle(.white).frame(width: 42, height: 42).background(AppTheme.deepViolet, in: Circle()) }
+        case .ring: AvatarRingView(ringID: product.id, size: 62, animated: false) { Image(systemName: "person.fill").foregroundStyle(.white).frame(width: 42, height: 42).background(AppTheme.deepViolet, in: Circle()) }
         case .font:
             VStack(spacing: 2) {
                 Text(product.id == MarketCatalog.cubeFontID ? "КУБ" : "Aa")
@@ -88,18 +89,114 @@ struct MarketplaceView: View {
         case .title: Label(product.name, systemImage: "crown.fill").font(.caption2.bold()).padding(.horizontal, 10).frame(height: 32).foregroundStyle(.white).background(titleGradient(product), in: Capsule())
         }
     }
-    private func buyOrEquip(_ product: MarketProduct) { if store.purchasedMarketIDs.contains(product.id) { store.equip(product); message = "Выбрано: \(product.name)" } else if store.buy(product) { message = "Покупка готова: \(product.name)" } else { message = "Недостаточно монет" } }
     private func equipped(_ product: MarketProduct) -> Bool { switch product.kind { case .ring: store.equippedRingID == product.id; case .font: store.equippedFontID == product.id; case .title: store.equippedTitleID == product.id } }
     private func titleGradient(_ product: MarketProduct) -> LinearGradient { LinearGradient(colors: [Color(hue: Double(product.variant % 25) / 25, saturation: 0.75, brightness: 0.8), AppTheme.violet], startPoint: .leading, endPoint: .trailing) }
 }
 
 struct AvatarRingView<Content: View>: View {
-    let ringID: String; let size: CGFloat; let content: Content
+    let ringID: String; let size: CGFloat; let animated: Bool; let content: Content
     @State private var rotates = false
-    init(ringID: String, size: CGFloat, @ViewBuilder content: () -> Content) { self.ringID = ringID; self.size = size; self.content = content() }
+    init(ringID: String, size: CGFloat, animated: Bool = true, @ViewBuilder content: () -> Content) { self.ringID = ringID; self.size = size; self.animated = animated; self.content = content() }
     private var variant: Int { Int(ringID.split(separator: "-").last ?? "0") ?? 0 }
-    var body: some View { ZStack { Circle().stroke(AngularGradient(colors: colors + [colors[0]], center: .center), lineWidth: max(3, size * 0.08)).rotationEffect(.degrees(rotates ? 360 : 0)); content }.frame(width: size, height: size).onAppear { withAnimation(.linear(duration: Double(4 + variant % 5)).repeatForever(autoreverses: false)) { rotates = true } } }
+    var body: some View { ZStack { Circle().stroke(AngularGradient(colors: colors + [colors[0]], center: .center), lineWidth: max(3, size * 0.08)).rotationEffect(.degrees(rotates ? 360 : 0)); content }.frame(width: size, height: size).onAppear { guard animated else { return }; withAnimation(.linear(duration: Double(4 + variant % 5)).repeatForever(autoreverses: false)) { rotates = true } } }
     private var colors: [Color] { [Color(hue: Double(variant % 20) / 20, saturation: 0.85, brightness: 0.95), Color(hue: Double((variant * 7 + 5) % 20) / 20, saturation: 0.8, brightness: 0.95), .white] }
+}
+
+private struct MarketProductDetailView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let product: MarketProduct
+    @State private var typedText = ""
+    @State private var titleGlow = false
+    @State private var message = ""
+    private let sample = "Учись. Создавай. Побеждай!"
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    preview
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(product.kind.name, systemImage: product.kind.symbol).font(.caption.bold()).foregroundStyle(AppTheme.violet)
+                        Text(product.name).font(.largeTitle.bold())
+                        Text(detailText).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    if !message.isEmpty {
+                        Label(message, systemImage: message == "Недостаточно монет" ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .font(.subheadline.bold()).foregroundStyle(message == "Недостаточно монет" ? .orange : AppTheme.mint)
+                    }
+                    actionButton
+                }.padding(20)
+            }
+            .background { AnimatedAppBackground() }
+            .navigationTitle("Предпросмотр")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() } } }
+            .task(id: product.id) { await startPreview() }
+        }
+    }
+
+    @ViewBuilder private var preview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 32, style: .continuous).fill(.regularMaterial)
+            switch product.kind {
+            case .font:
+                VStack(spacing: 18) {
+                    Text("Aa Бб 123").font(.custom(MarketCatalog.fontFamily(for: product), size: 28)).foregroundStyle(AppTheme.violet)
+                    Text(typedText + (typedText.count < sample.count ? "▌" : ""))
+                        .font(.custom(MarketCatalog.fontFamily(for: product), size: 25)).multilineTextAlignment(.center).frame(minHeight: 70)
+                    Text("Так будет выглядеть текст во всём приложении").font(.caption).foregroundStyle(.secondary)
+                }.padding()
+            case .ring:
+                VStack(spacing: 20) {
+                    AvatarRingView(ringID: product.id, size: 150, animated: !reduceMotion) {
+                        Image(systemName: "person.fill").font(.system(size: 54)).foregroundStyle(.white).frame(width: 116, height: 116).background(AppTheme.deepViolet.gradient, in: Circle())
+                    }
+                    Text("Живой предпросмотр рамки").font(.headline)
+                }
+            case .title:
+                VStack(spacing: 18) {
+                    Image(systemName: "crown.fill").font(.system(size: 48)).foregroundStyle(AppTheme.gold).scaleEffect(titleGlow ? 1.08 : 0.92)
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.crop.circle.fill").font(.system(size: 54)).foregroundStyle(AppTheme.violet)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(store.studentName).font(.headline)
+                            Label(product.name, systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.white).padding(.horizontal, 11).padding(.vertical, 7).background(titleGradient, in: Capsule())
+                        }
+                    }.padding(18).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24))
+                    Text("Так титул увидят друзья в твоём профиле").font(.caption).foregroundStyle(.secondary)
+                }.padding()
+            }
+        }.frame(minHeight: 300).shadow(color: AppTheme.violet.opacity(0.12), radius: 16, y: 8)
+    }
+
+    private var actionButton: some View {
+        let owned = store.purchasedMarketIDs.contains(product.id)
+        let equipped = isEquipped
+        return Button { buyOrEquip() } label: {
+            Label(equipped ? "Уже выбрано" : owned ? "Выбрать" : "Купить за \(product.price) монет", systemImage: equipped ? "checkmark.seal.fill" : owned ? "tshirt.fill" : "seal.fill")
+                .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 16).foregroundStyle(.white).background(equipped ? AppTheme.mint : AppTheme.violet, in: RoundedRectangle(cornerRadius: 18))
+        }.disabled(equipped).buttonStyle(ScalePressStyle())
+    }
+
+    private var isEquipped: Bool { switch product.kind { case .ring: store.equippedRingID == product.id; case .font: store.equippedFontID == product.id; case .title: store.equippedTitleID == product.id } }
+    private var detailText: String { switch product.kind { case .font: "Посмотри, как шрифт пишет фразу, а затем примени его ко всему интерфейсу."; case .ring: "Рамка плавно движется вокруг аватара и будет видна в профиле."; case .title: "Редкий знак статуса под именем — его увидят друзья и другие ученики." } }
+    private var titleGradient: LinearGradient { LinearGradient(colors: [Color(hue: Double(product.variant % 25) / 25, saturation: 0.75, brightness: 0.82), AppTheme.violet], startPoint: .leading, endPoint: .trailing) }
+    private func buyOrEquip() { if store.purchasedMarketIDs.contains(product.id) { store.equip(product); message = "Выбрано: \(product.name)" } else if store.buy(product) { message = "Покупка готова и сразу выбрана" } else { message = "Недостаточно монет" } }
+    private func startPreview() async {
+        if product.kind == .font {
+            typedText = ""
+            if reduceMotion { typedText = sample; return }
+            for character in sample {
+                guard !Task.isCancelled else { return }
+                typedText.append(character)
+                try? await Task.sleep(for: .milliseconds(58))
+            }
+        } else if product.kind == .title, !reduceMotion {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { titleGlow = true }
+        }
+    }
 }
 
 private struct AdminCoinView: View {
