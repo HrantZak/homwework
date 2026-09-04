@@ -20,9 +20,3 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1"
-    preBuildScripts:
-      - name: Increment build number
-        script: |
-          if [ "$CONFIGURATION" = "Release" ]; then
-            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(( ${CURRENT_PROJECT_VERSION:-1} + 1 ))" "$SRCROOT/Uspevai/Info.plist"
-          fi

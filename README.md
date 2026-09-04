@@ -24,6 +24,6 @@
 
 Первая команда копирует сертификат, вторая — provisioning profile. В Secret нужно вставлять результат команды целиком, без кавычек и имени файла.
 
-Каждый новый релиз должен получать новый `MARKETING_VERSION` в `project.yml`; номер Release-сборки повышается автоматически.
+Каждый новый релиз должен получать новые `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в `project.yml`. Номер меняется в настройках проекта до сборки, поэтому Xcode не пытается перезаписывать `Info.plist` во время работы.
 
 Без Apple Secrets Action создаёт `Uspevai-unsigned.ipa`. Такой IPA необходимо подписать своим Apple ID через AltStore или Sideloadly. При наличии Apple Secrets дополнительно создаётся подписанный `Uspevai.ipa`.

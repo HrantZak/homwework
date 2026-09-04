@@ -23,11 +23,19 @@ jobs:
         run: xcodegen generate
       - name: Build unsigned iPhone app
         run: |
-          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -sdk iphoneos -configuration Release -derivedDataPath $RUNNER_TEMP/DerivedData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+          set -o pipefail
+          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -sdk iphoneos -configuration Release -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
           mkdir -p "$RUNNER_TEMP/UnsignedIPA/Payload"
           cp -R "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Uspevai.app" "$RUNNER_TEMP/UnsignedIPA/Payload/"
           cd "$RUNNER_TEMP/UnsignedIPA"
           zip -qry "$RUNNER_TEMP/Uspevai-unsigned.ipa" Payload
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-error-log-${{ github.run_number }}
+          path: ${{ runner.temp }}/xcodebuild.log
+          if-no-files-found: warn
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
