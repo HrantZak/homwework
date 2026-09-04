@@ -5,7 +5,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Напоминания") { Toggle("В конце урока", isOn: $store.remindersEnabled); Text("Напомним записать домашнее задание сразу после звонка.").font(.caption).foregroundStyle(.secondary) }
+                Section("Напоминания") { Toggle("В начале урока", isOn: $store.remindersEnabled); Text("Когда урок начнётся, напомним записать домашнее задание.").font(.caption).foregroundStyle(.secondary) }
                 Section("Внешний вид") { Toggle("Тёмная тема", isOn: $store.darkMode) }
                 Section("Учебный период") { DatePicker("Конец четверти", selection: $store.termEnd, displayedComponents: .date) }
                 Section("Приложение") {

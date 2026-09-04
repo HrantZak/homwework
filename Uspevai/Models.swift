@@ -37,6 +37,33 @@ struct SchoolNote: Identifiable, Codable, Hashable, Sendable {
     var id = UUID(); var title: String; var text: String; var createdAt = Date(); var isPinned = false
 }
 
+struct ScheduleOverride: Identifiable, Codable, Hashable, Sendable {
+    var id = UUID()
+    var date: Date
+    var sourceWeekday: Int?
+    var note: String = ""
+}
+
+enum AchievementRarity: String, Codable, CaseIterable, Sendable {
+    case common, rare, epic, legendary
+
+    var title: String {
+        switch self { case .common: "Обычное"; case .rare: "Редкое"; case .epic: "Эпическое"; case .legendary: "Легендарное" }
+    }
+}
+
+struct Achievement: Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let detail: String
+    let symbol: String
+    let rarity: AchievementRarity
+    let target: Int
+    let metric: Metric
+
+    enum Metric: Hashable, Sendable { case completedHomework, grades, excellentGrades, lessons, streak, profile }
+}
+
 enum SeedData {
     static let times = [("09:00", "09:45"), ("09:55", "10:40"), ("10:50", "11:35"), ("11:45", "12:30")]
     static let titles: [[String]] = [

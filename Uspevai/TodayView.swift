@@ -3,6 +3,7 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject var store: AppStore
     @State private var heroMoves = false
+    @State private var homeworkLesson: Lesson?
     private var openHomework: [Homework] {
         store.homework.filter { !$0.isDone }.sorted { $0.dueDate < $1.dueDate }
     }
@@ -26,6 +27,7 @@ struct TodayView: View {
                     }.frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: AppTheme.violet.opacity(0.18), radius: 12, y: 7).onAppear { withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { heroMoves = true } }
 
                     if !today.isEmpty { dayProgress(completed: completed, total: today.count) }
+                    if let active = activeLesson(in: today, now: timeline.date) { activeLessonCard(active) }
                     if let homework = openHomework.first { homeworkFocus(homework) }
 
                     HStack {
@@ -38,13 +40,12 @@ struct TodayView: View {
                     }.padding()
                 }.background { AnimatedAppBackground() }
             }.navigationTitle("Успевай")
+                .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: .now).presentationDetents([.large]) }
         }
     }
 
     private func lessons(on date: Date) -> [Lesson] {
-        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
-        let weekday = calendar.component(.weekday, from: date)
-        return store.lessons.filter { $0.weekday == weekday }.sorted { $0.order < $1.order }
+        store.lessons(on: date)
     }
 
     private func completedLessons(in lessons: [Lesson], now: Date) -> Int {
@@ -53,6 +54,23 @@ struct TodayView: View {
 
     private func nextLesson(in lessons: [Lesson], now: Date) -> Lesson? {
         lessons.first { lesson in guard let end = time(on: now, value: lesson.endsAt) else { return false }; return end > now }
+    }
+
+    private func activeLesson(in lessons: [Lesson], now: Date) -> Lesson? {
+        lessons.first { lesson in
+            guard let start = time(on: now, value: lesson.startsAt), let end = time(on: now, value: lesson.endsAt) else { return false }
+            return now >= start && now < end
+        }
+    }
+
+    private func activeLessonCard(_ lesson: Lesson) -> some View {
+        Button { homeworkLesson = lesson } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "waveform.circle.fill").font(.title).symbolEffect(.pulse).foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 3) { Text("Сейчас идёт урок").font(.caption.bold()).opacity(0.8); Text(lesson.title).font(.headline); Text("Можно уже записывать домашнее задание").font(.caption).opacity(0.8) }
+                Spacer(); Image(systemName: "square.and.pencil").font(.title3.bold())
+            }.padding(17).foregroundStyle(.white).background(LinearGradient(colors: [AppTheme.coral, AppTheme.violet], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 21))
+        }.buttonStyle(ScalePressStyle())
     }
 
     private func lessonCountText(_ count: Int) -> String {

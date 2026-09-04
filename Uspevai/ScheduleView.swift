@@ -8,6 +8,7 @@ struct ScheduleView: View {
     @State private var showScheduleManager = false
     @State private var gradingLesson: Lesson?
     @State private var homeworkLesson: Lesson?
+    @State private var showDayOverride = false
     private var day: Int { appCalendar.component(.weekday, from: selectedDate) }
     private var appCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -21,6 +22,7 @@ struct ScheduleView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     dateHero
+                    if let override = store.override(on: selectedDate) { overrideBanner(override) }
                     if !dayLessons.isEmpty {
                         HStack {
                             Text("Уроки").font(.title2.bold())
@@ -41,16 +43,32 @@ struct ScheduleView: View {
                     Menu {
                         Button { showScheduleManager = true } label: { Label("Всё расписание", systemImage: "tablecells") }
                         Button { showImport = true } label: { Label("Импорт с фото", systemImage: "camera.viewfinder") }
+                        Button { showDayOverride = true } label: { Label("Заменить день", systemImage: "arrow.triangle.2.circlepath.calendar") }
                     } label: { Image(systemName: "ellipsis.circle") }
                 }
                 .sheet(isPresented: $showImport) { ImportScheduleView() }
                 .sheet(isPresented: $showScheduleManager) { ScheduleManagerView() }
                 .sheet(item: $gradingLesson) { lesson in AddLessonGradeView(lesson: lesson, date: selectedDate) }
                 .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: selectedDate).presentationDetents([.large]).presentationDragIndicator(.visible) }
+                .sheet(isPresented: $showDayOverride) { DayOverrideView(date: selectedDate) }
         }
     }
 
-    private var dayLessons: [Lesson] { store.lessons.filter { $0.weekday == day }.sorted { $0.order < $1.order } }
+    private var dayLessons: [Lesson] { store.lessons(on: selectedDate) }
+
+    private func overrideBanner(_ override: ScheduleOverride) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: override.sourceWeekday == nil ? "moon.stars.fill" : "arrow.triangle.2.circlepath.calendar").foregroundStyle(AppTheme.violet).font(.title3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(override.sourceWeekday.map { "Расписание: \(weekdayName($0))" } ?? "День без уроков").font(.subheadline.bold())
+                Text(override.note.isEmpty ? "Разовая замена только для этой даты" : override.note).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button { store.clearScheduleOverride(on: selectedDate) } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Отменить замену")
+        }.padding(14).background(AppTheme.violet.opacity(0.09), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func weekdayName(_ value: Int) -> String { [2:"понедельника",3:"вторника",4:"среды",5:"четверга",6:"пятницы",7:"субботы",1:"воскресенья"][value] ?? "другого дня" }
 
     private var dateHero: some View {
         ZStack {
@@ -78,7 +96,7 @@ struct ScheduleView: View {
 
     private func lessonCard(_ lesson: Lesson, now: Date) -> some View {
         let items = Array(homeworkFor(lesson).prefix(2))
-        let ended = lessonHasEnded(lesson, now: now)
+        let canWriteHomework = lessonHasStarted(lesson, now: now)
         return SoftCard {
             VStack(spacing: 14) {
                 HStack(spacing: 14) {
@@ -121,7 +139,7 @@ struct ScheduleView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            if ended {
+            if canWriteHomework {
                 Button { homeworkLesson = lesson } label: {
                     HStack { Image(systemName: "square.and.pencil"); Text(items.isEmpty ? "Записать домашнее задание" : "Добавить ещё"); Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.55) }
                         .font(.subheadline.bold()).padding(.horizontal, 14).padding(.vertical, 12).foregroundStyle(.white)
@@ -134,7 +152,7 @@ struct ScheduleView: View {
         .scrollTransition(.animated(reduceMotion ? .linear(duration: 0.01) : .spring(response: 0.45, dampingFraction: 0.86))) { content, phase in
             content.opacity(phase.isIdentity ? 1 : 0.68).scaleEffect(phase.isIdentity ? 1 : 0.965)
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.82), value: ended)
+        .animation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.82), value: canWriteHomework)
         .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.84), value: items)
     }
 
@@ -161,9 +179,9 @@ struct ScheduleView: View {
             return createdHere || dueHere
         }.sorted { $0.isDone == $1.isDone ? $0.dueDate < $1.dueDate : !$0.isDone }
     }
-    private func lessonHasEnded(_ lesson: Lesson, now: Date) -> Bool {
-        guard Calendar.current.isDateInToday(selectedDate), let end = dateTime(lesson.endsAt, on: selectedDate) else { return false }
-        return now >= end
+    private func lessonHasStarted(_ lesson: Lesson, now: Date) -> Bool {
+        guard Calendar.current.isDateInToday(selectedDate), let start = dateTime(lesson.startsAt, on: selectedDate) else { return false }
+        return now >= start
     }
     private func dateTime(_ text: String, on date: Date) -> Date? {
         let parts = text.split(separator: ":").compactMap { Int($0) }
@@ -320,5 +338,45 @@ struct LessonEditor: View {
                 TextField("Конец", text: $store.lessons[index].endsAt).keyboardType(.numbersAndPunctuation)
             }
         }.navigationTitle("Урок").navigationBarTitleDisplayMode(.inline).onDisappear { store.refreshNotifications() }
+    }
+}
+
+struct DayOverrideView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    let date: Date
+    @State private var selection = 0
+    @State private var note = ""
+
+    private let choices = [(0, "По обычному расписанию"), (2, "Как в понедельник"), (3, "Как во вторник"), (4, "Как в среду"), (5, "Как в четверг"), (6, "Как в пятницу"), (7, "Как в субботу"), (1, "Как в воскресенье"), (-1, "Без уроков")]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section { LabeledContent("Дата", value: date.formatted(date: .long, time: .omitted)) }
+                Section("Как учимся в этот день") {
+                    Picker("Расписание", selection: $selection) {
+                        ForEach(choices, id: \.0) { choice in Text(choice.1).tag(choice.0) }
+                    }.pickerStyle(.inline).labelsHidden()
+                }
+                Section("Комментарий") {
+                    TextField("Например: перенос из-за праздника", text: $note, axis: .vertical).lineLimit(2...4)
+                } footer: {
+                    Text("Замена действует только для выбранной даты. Например, в субботу можно включить расписание понедельника, не меняя остальные недели.")
+                }
+            }
+            .navigationTitle("Замена расписания").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Сохранить") { save() } }
+            }
+            .onAppear { if let current = store.override(on: date) { selection = current.sourceWeekday ?? -1; note = current.note } }
+        }
+    }
+
+    private func save() {
+        if selection == 0 { store.clearScheduleOverride(on: date) }
+        else { store.setScheduleOverride(on: date, sourceWeekday: selection == -1 ? nil : selection, note: note.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        dismiss()
     }
 }

@@ -9,9 +9,14 @@ final class AppStore: ObservableObject {
     @Published var attendance: [Attendance] { didSet { scheduleSave(attendance, key: "attendance") } }
     @Published var exams: [Exam] { didSet { scheduleSave(exams, key: "exams") } }
     @Published var notes: [SchoolNote] { didSet { scheduleSave(notes, key: "notes") } }
+    @Published var scheduleOverrides: [ScheduleOverride] { didSet { scheduleSave(scheduleOverrides, key: "scheduleOverrides") } }
     @Published var termEnd: Date { didSet { defaults.set(termEnd, forKey: "termEnd") } }
     @Published var remindersEnabled: Bool { didSet { defaults.set(remindersEnabled, forKey: "reminders"); scheduleNotifications() } }
     @Published var darkMode: Bool { didSet { defaults.set(darkMode, forKey: "darkMode") } }
+    @Published var studentName: String { didSet { defaults.set(studentName, forKey: "studentName") } }
+    @Published var profileBio: String { didSet { defaults.set(profileBio, forKey: "profileBio") } }
+    @Published var accentIndex: Int { didSet { defaults.set(accentIndex, forKey: "accentIndex") } }
+    @Published var pinnedAchievementIDs: [String] { didSet { scheduleSave(pinnedAchievementIDs, key: "pinnedAchievementIDs") } }
 
     private let defaults = UserDefaults.standard
     private var pendingSaves: [String: Task<Void, Never>] = [:]
@@ -23,9 +28,14 @@ final class AppStore: ObservableObject {
         attendance = Self.load([Attendance].self, key: "attendance") ?? []
         exams = Self.load([Exam].self, key: "exams") ?? []
         notes = Self.load([SchoolNote].self, key: "notes") ?? []
+        scheduleOverrides = Self.load([ScheduleOverride].self, key: "scheduleOverrides") ?? []
         termEnd = defaults.object(forKey: "termEnd") as? Date ?? Calendar.current.date(from: DateComponents(year: 2026, month: 12, day: 26))!
         remindersEnabled = defaults.object(forKey: "reminders") as? Bool ?? true
         darkMode = defaults.bool(forKey: "darkMode")
+        studentName = defaults.string(forKey: "studentName") ?? "Ученик"
+        profileBio = defaults.string(forKey: "profileBio") ?? "Иду к цели шаг за шагом"
+        accentIndex = defaults.integer(forKey: "accentIndex")
+        pinnedAchievementIDs = Self.load([String].self, key: "pinnedAchievementIDs") ?? []
         if !defaults.bool(forKey: "migratedToTenPointScale") {
             grades = grades.map { old in var updated = old; updated.value = min(10, old.value * 2); return updated }
             defaults.set(true, forKey: "migratedToTenPointScale")
@@ -50,6 +60,29 @@ final class AppStore: ObservableObject {
 
     func refreshNotifications() { scheduleNotifications() }
 
+    func lessons(on date: Date) -> [Lesson] {
+        let day = Calendar.current.component(.weekday, from: date)
+        let override = scheduleOverrides.last { Calendar.current.isDate($0.date, inSameDayAs: date) }
+        guard let source = override?.sourceWeekday else {
+            if override != nil { return [] }
+            return lessons.filter { $0.weekday == day }.sorted { $0.order < $1.order }
+        }
+        return lessons.filter { $0.weekday == source }.sorted { $0.order < $1.order }
+    }
+
+    func setScheduleOverride(on date: Date, sourceWeekday: Int?, note: String = "") {
+        scheduleOverrides.removeAll { Calendar.current.isDate($0.date, inSameDayAs: date) }
+        scheduleOverrides.append(ScheduleOverride(date: Calendar.current.startOfDay(for: date), sourceWeekday: sourceWeekday, note: note))
+    }
+
+    func clearScheduleOverride(on date: Date) {
+        scheduleOverrides.removeAll { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    func override(on date: Date) -> ScheduleOverride? {
+        scheduleOverrides.last { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
     private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {
         pendingSaves[key]?.cancel()
         pendingSaves[key] = Task {
@@ -73,15 +106,15 @@ final class AppStore: ObservableObject {
         center.removeAllPendingNotificationRequests()
         guard remindersEnabled else { return }
         for lesson in lessons {
-            let bits = lesson.endsAt.split(separator: ":").compactMap { Int($0) }
+            let bits = lesson.startsAt.split(separator: ":").compactMap { Int($0) }
             guard bits.count == 2 else { continue }
             var date = DateComponents()
             date.weekday = lesson.weekday
             date.hour = bits[0]
             date.minute = bits[1]
             let content = UNMutableNotificationContent()
-            content.title = "Урок закончился"
-            content.body = "Запиши домашнее задание по предмету «\(lesson.title)»"
+            content.title = "Урок начался"
+            content.body = "Можно записывать домашнее задание по предмету «\(lesson.title)»"
             content.sound = .default
             let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
             center.add(UNNotificationRequest(identifier: "lesson-\(lesson.id)", content: content, trigger: trigger))
