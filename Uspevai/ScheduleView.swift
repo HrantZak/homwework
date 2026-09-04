@@ -359,8 +359,10 @@ struct DayOverrideView: View {
                         ForEach(choices, id: \.0) { choice in Text(choice.1).tag(choice.0) }
                     }.pickerStyle(.inline).labelsHidden()
                 }
-                Section("Комментарий") {
+                Section {
                     TextField("Например: перенос из-за праздника", text: $note, axis: .vertical).lineLimit(2...4)
+                } header: {
+                    Text("Комментарий")
                 } footer: {
                     Text("Замена действует только для выбранной даты. Например, в субботу можно включить расписание понедельника, не меняя остальные недели.")
                 }
