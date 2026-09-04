@@ -18,6 +18,13 @@ struct ProfileView: View {
             ScrollView {
                 LazyVStack(spacing: 18) {
                     profileHero
+                    NavigationLink { CommunityView(streak: studyStreak, level: level, pinnedAchievementIDs: pinned.map(\.id)) } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "person.2.wave.2.fill").font(.title2.bold()).foregroundStyle(.white).frame(width: 52, height: 52).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 17))
+                            VStack(alignment: .leading, spacing: 4) { Text("Сообщество Успевай").font(.headline); Text("Найди друзей и посмотри их достижения").font(.caption).opacity(0.78).multilineTextAlignment(.leading) }
+                            Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.7)
+                        }.padding(17).foregroundStyle(.white).background(LinearGradient(colors: [AppTheme.mint, AppTheme.blue], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 22))
+                    }.buttonStyle(ScalePressStyle())
                     showcase
                     progressCard
                     rarityPicker

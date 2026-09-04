@@ -1,0 +1,105 @@
+import SwiftUI
+
+struct CommunityView: View {
+    @EnvironmentObject private var store: AppStore
+    @StateObject private var cloud = FirebaseProfileService()
+    @AppStorage("communityPublished") private var isPublished = false
+    @State private var searchCode = ""
+    let streak: Int
+    let level: Int
+    let pinnedAchievementIDs: [String]
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 18) {
+                communityHero
+                publishCard
+                searchCard
+                if let profile = cloud.foundProfile { profileCard(profile, canAdd: true) }
+                friendsSection
+            }.padding()
+        }
+        .background { AnimatedAppBackground() }
+        .navigationTitle("Сообщество")
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay { if cloud.isWorking { ProgressView().controlSize(.large).padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20)) } }
+        .task { await cloud.connect() }
+        .refreshable { await cloud.connect() }
+    }
+
+    private var communityHero: some View {
+        ZStack {
+            AppTheme.heroGradient
+            Circle().fill(.white.opacity(0.12)).frame(width: 150).offset(x: 125, y: -45)
+            VStack(spacing: 11) {
+                Image(systemName: "person.2.wave.2.fill").font(.system(size: 34, weight: .bold))
+                Text("Учимся вместе").font(.title2.bold())
+                Text("Делись кодом, находи друзей и смотри их успехи").font(.subheadline).opacity(0.78).multilineTextAlignment(.center)
+            }.foregroundStyle(.white).padding(22)
+        }.frame(height: 170).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: AppTheme.violet.opacity(0.28), radius: 20, y: 10)
+    }
+
+    private var publishCard: some View {
+        SoftCard {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Мой сетевой профиль", subtitle: cloud.message.isEmpty ? "Подключение к Firebase" : cloud.message, symbol: "network")
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) { Text("Ваш код").font(.caption).foregroundStyle(.secondary); Text(cloud.profileCode).font(.title2.monospaced().bold()).tracking(2) }
+                    Spacer()
+                    ShareLink(item: cloud.profileCode, subject: Text("Мой профиль в Успевай"), message: Text("Добавь меня в Успевай. Код профиля: \(cloud.profileCode)")) { Image(systemName: "square.and.arrow.up").frame(width: 46, height: 46).background(AppTheme.violet.opacity(0.11), in: RoundedRectangle(cornerRadius: 14)) }.accessibilityLabel("Поделиться кодом")
+                }
+                Toggle("Показывать мой профиль", isOn: $isPublished).tint(AppTheme.violet)
+                Button { Task { await publish() } } label: {
+                    Label(isPublished ? "Опубликовать изменения" : "Сохранить приватность", systemImage: isPublished ? "arrow.triangle.2.circlepath" : "eye.slash.fill")
+                        .font(.headline).frame(maxWidth: .infinity).frame(height: 48).foregroundStyle(.white).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 15))
+                }.buttonStyle(ScalePressStyle()).disabled(!cloud.accountReady || cloud.isWorking).opacity(cloud.accountReady ? 1 : 0.5)
+                Text("Публикуются только имя, девиз, огонёк, уровень и три выбранных достижения. Расписание, оценки и задания остаются на вашем устройстве.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var searchCard: some View {
+        SoftCard {
+            VStack(alignment: .leading, spacing: 13) {
+                SectionHeader(title: "Найти друга", subtitle: "Введите его восьмизначный код", symbol: "person.badge.plus")
+                HStack(spacing: 9) {
+                    TextField("Например, A7K9M2QX", text: $searchCode).textInputAutocapitalization(.characters).autocorrectionDisabled().font(.body.monospaced()).padding(.horizontal, 13).frame(height: 48).background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 14))
+                    Button { Task { await cloud.search(code: searchCode) } } label: { Image(systemName: "magnifyingglass").font(.headline).foregroundStyle(.white).frame(width: 48, height: 48).background(AppTheme.violet, in: RoundedRectangle(cornerRadius: 14)) }.buttonStyle(ScalePressStyle()).accessibilityLabel("Найти")
+                }
+            }
+        }
+    }
+
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Друзья", subtitle: cloud.friends.isEmpty ? "Добавленных друзей пока нет" : "\(cloud.friends.count) в вашем списке", symbol: "person.2.fill")
+            ForEach(cloud.friends) { profile in profileCard(profile, canAdd: false) }
+            if cloud.friends.isEmpty { ContentUnavailableView("Найдите первого друга", systemImage: "person.2.slash", description: Text("Попросите его отправить код профиля")) }
+        }
+    }
+
+    private func profileCard(_ profile: PublicStudentProfile, canAdd: Bool) -> some View {
+        SoftCard {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(spacing: 12) {
+                    Text(initials(profile.name)).font(.headline.bold()).foregroundStyle(.white).frame(width: 50, height: 50).background(profileAccent(profile).gradient, in: RoundedRectangle(cornerRadius: 16))
+                    VStack(alignment: .leading, spacing: 3) { Text(profile.name).font(.headline); Text(profile.bio.isEmpty ? "Ученик Успевай" : profile.bio).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) { Label("\(profile.streak)", systemImage: "flame.fill").foregroundStyle(.orange); Text("Ур. \(profile.level)").foregroundStyle(.secondary) }.font(.caption.bold())
+                }
+                HStack(spacing: 9) {
+                    ForEach(profile.pinnedAchievementIDs.prefix(3), id: \.self) { id in
+                        if let achievement = AchievementCatalog.all.first(where: { $0.id == id }) { AchievementBadgeArtwork(achievement: achievement, isUnlocked: true, size: 44) }
+                    }
+                    Spacer()
+                    if canAdd { Button("Добавить") { Task { await cloud.addFoundProfile() } }.buttonStyle(.borderedProminent).tint(AppTheme.violet) }
+                    else { Button(role: .destructive) { cloud.removeFriend(profile) } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга") }
+                }
+            }
+        }
+    }
+
+    private func publish() async { await cloud.publish(name: store.studentName, bio: store.profileBio, streak: streak, level: level, accentIndex: store.accentIndex, pinnedAchievementIDs: Array(pinnedAchievementIDs.prefix(3)), isPublic: isPublished) }
+    private func initials(_ name: String) -> String { let value = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased(); return value.isEmpty ? "У" : value }
+    private func profileAccent(_ profile: PublicStudentProfile) -> Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][abs(profile.accentIndex) % 4] }
+}

@@ -3,16 +3,25 @@ options:
   bundleIdPrefix: am.hrant
   deploymentTarget:
     iOS: "17.0"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    exactVersion: 11.15.0
 settings:
   base:
-    MARKETING_VERSION: 7.1.0
-    CURRENT_PROJECT_VERSION: 26
+    MARKETING_VERSION: 7.2.0
+    CURRENT_PROJECT_VERSION: 28
     SWIFT_VERSION: 5.10
 targets:
   Uspevai:
     type: application
     platform: iOS
     sources: [Uspevai]
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: am.hrant.uspevai
