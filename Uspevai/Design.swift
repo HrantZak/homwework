@@ -18,14 +18,14 @@ struct SoftCard<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         content.padding(18)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(LinearGradient(colors: [.white.opacity(0.16), AppTheme.violet.opacity(0.035), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .allowsHitTesting(false)
             }
             .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(LinearGradient(colors: [.white.opacity(0.34), .primary.opacity(0.07), AppTheme.violet.opacity(0.11)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1) }
-            .shadow(color: AppTheme.deepViolet.opacity(0.07), radius: 14, y: 7)
+            .shadow(color: AppTheme.deepViolet.opacity(0.035), radius: 6, y: 3)
     }
 }
 
@@ -92,6 +92,8 @@ struct FocusTimerCard: View {
     @State private var selectedMinutes: Int
     @State private var secondsLeft: Int
     @State private var isRunning = false
+    @State private var deadline: Date?
+    @Environment(\.scenePhase) private var scenePhase
 
     init(presets: [Int] = [15, 25, 40, 50, 60, 90], initial: Int = 25) {
         self.presets = presets
@@ -123,10 +125,21 @@ struct FocusTimerCard: View {
                 HStack {
                     Button(isRunning ? "Пауза" : secondsLeft == 0 ? "Сначала" : "Начать") {
                         if secondsLeft == 0 { secondsLeft = selectedMinutes * 60 }
-                        isRunning.toggle()
+                        if isRunning {
+                            if let deadline { secondsLeft = max(0, Int(ceil(deadline.timeIntervalSinceNow))) }
+                            isRunning = false; deadline = nil
+                        } else {
+                            deadline = Date().addingTimeInterval(TimeInterval(secondsLeft)); isRunning = true
+                        }
                     }.buttonStyle(.borderedProminent).tint(AppTheme.violet)
-                    Button("Сбросить") { secondsLeft = selectedMinutes * 60; isRunning = false }.buttonStyle(.bordered)
+                    Button("Сбросить") { secondsLeft = selectedMinutes * 60; isRunning = false; deadline = nil }.buttonStyle(.bordered)
                 }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, isRunning, let deadline {
+                secondsLeft = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+                if secondsLeft == 0 { isRunning = false }
             }
         }
         .task(id: isRunning) {
@@ -134,12 +147,12 @@ struct FocusTimerCard: View {
             while !Task.isCancelled && secondsLeft > 0 {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled && isRunning else { return }
-                secondsLeft -= 1
+                if let deadline { secondsLeft = max(0, Int(ceil(deadline.timeIntervalSinceNow))) }
             }
             if secondsLeft == 0 { isRunning = false }
         }
     }
 
     private var clockText: String { String(format: "%02d:%02d", secondsLeft / 60, secondsLeft % 60) }
-    private func select(_ minutes: Int) { selectedMinutes = minutes; secondsLeft = minutes * 60; isRunning = false }
+    private func select(_ minutes: Int) { selectedMinutes = minutes; secondsLeft = minutes * 60; isRunning = false; deadline = nil }
 }

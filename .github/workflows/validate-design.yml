@@ -1,0 +1,21 @@
+name: Validate design
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check calculations and data compatibility
+        run: |
+          swiftc Uspevai/Models.swift Uspevai/StudySnapshot.swift Tests/main.swift -o "$RUNNER_TEMP/uspevai-checks"
+          "$RUNNER_TEMP/uspevai-checks"
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Build iPhone simulator app
+        run: |
+          xcodegen generate
+          xcodebuild -project Uspevai.xcodeproj -scheme Uspevai -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

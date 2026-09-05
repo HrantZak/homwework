@@ -4,10 +4,12 @@ struct ProfileView: View {
     @EnvironmentObject private var store: AppStore
     @State private var selectedRarity: AchievementRarity?
     @State private var editingProfile = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var onlyUnlocked = false
 
     private var achievements: [Achievement] { AchievementCatalog.all }
     private var unlocked: [Achievement] { achievements.filter(isUnlocked) }
-    private var shown: [Achievement] { selectedRarity.map { rarity in achievements.filter { $0.rarity == rarity } } ?? achievements }
+    private var shown: [Achievement] { achievements.filter { (selectedRarity == nil || $0.rarity == selectedRarity) && (!onlyUnlocked || isUnlocked($0)) } }
     private var pinned: [Achievement] {
         let chosen = store.pinnedAchievementIDs.compactMap { id in achievements.first { $0.id == id && isUnlocked($0) } }
         return Array((chosen + unlocked.filter { item in !chosen.contains(item) }).prefix(3))
@@ -17,7 +19,8 @@ struct ProfileView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 18) {
-                    profileHero
+                    profileHero.revealOnAppear()
+                    statistics
                     NavigationLink { CommunityView(streak: studyStreak, level: level, pinnedAchievementIDs: pinned.map(\.id)) } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "person.2.wave.2.fill").font(.title2.bold()).foregroundStyle(.white).frame(width: 52, height: 52).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 17))
@@ -27,7 +30,10 @@ struct ProfileView: View {
                     }.buttonStyle(ScalePressStyle())
                     showcase
                     progressCard
+                    SectionHeader(title: "Твои достижения", subtitle: "Маленькие шаги. Большие результаты.")
+                    Toggle("Только полученные", isOn: $onlyUnlocked).tint(accent)
                     rarityPicker
+                    if shown.isEmpty { ContentUnavailableView("Награды ещё впереди", systemImage: "trophy", description: Text("Выбери другую редкость или покажи все достижения.")) }
                     achievementGrid
                     NavigationLink { StudentCenterView() } label: {
                         Label("Открыть центр ученика", systemImage: "square.grid.2x2.fill")
@@ -40,40 +46,53 @@ struct ProfileView: View {
             .background { AnimatedAppBackground() }
             .navigationTitle("Профиль")
             .toolbar { Button { editingProfile = true } label: { Image(systemName: "pencil.circle") }.accessibilityLabel("Изменить профиль") }
+            .sensoryFeedback(.selection, trigger: store.pinnedAchievementIDs)
             .sheet(isPresented: $editingProfile) { EditProfileView() }
         }
     }
 
     private var profileHero: some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(colors: [AppTheme.deepViolet, accent, AppTheme.cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
-            Circle().fill(.white.opacity(0.12)).frame(width: 190).offset(x: 225, y: -55)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    AvatarRingView(ringID: store.equippedRingID.isEmpty ? "ring-0" : store.equippedRingID, size: 72) {
-                        Text(initials).font(store.activeFont(size: 25, relativeTo: .title2).bold()).frame(width: 56, height: 56).background(.white.opacity(0.18), in: Circle())
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(store.studentName).font(store.activeFont(size: 22, relativeTo: .title2).bold())
-                        Text(store.profileTitle).font(store.activeFont(size: 12, relativeTo: .caption).bold()).foregroundStyle(AppTheme.gold)
-                        Text(store.profileBio).font(store.activeFont(size: 15, relativeTo: .subheadline)).opacity(0.8).lineLimit(1)
-                    }.padding(.top, 5)
-                    Spacer()
-                }
-                HStack(spacing: 8) {
-                    Label("\(studyStreak)", systemImage: "flame.fill").foregroundStyle(.orange)
-                    Text("дней подряд").opacity(0.82)
-                    Spacer()
-                    Text("Уровень \(level)").fontWeight(.bold)
-                }.font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).padding(.horizontal, 13).frame(height: 42).background(.black.opacity(0.13), in: Capsule())
-            }.foregroundStyle(.white).padding(21)
-        }.frame(height: 190).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous)).shadow(color: accent.opacity(0.28), radius: 20, y: 10)
+        VStack(spacing: 20) {
+            HStack {
+                Label("ТВОЯ ОРБИТА", systemImage: "sparkle").font(.caption2.bold()).tracking(2)
+                Spacer()
+                Label("Уровень \(level)", systemImage: "bolt.fill").font(.caption.bold())
+                    .padding(10).background(.white.opacity(0.12), in: Capsule())
+            }.foregroundStyle(.white.opacity(0.8))
+            AvatarRingView(ringID: store.equippedRingID.isEmpty ? "ring-0" : store.equippedRingID, size: 104) {
+                Text(initials).font(store.activeFont(size: 34, relativeTo: .largeTitle).bold())
+                    .frame(width: 84, height: 84).background(.white.opacity(0.13), in: Circle())
+            }.padding(4)
+            VStack(spacing: 8) {
+                Text(store.studentName).font(store.activeFont(size: 28, relativeTo: .title).bold()).multilineTextAlignment(.center)
+                Label(store.profileTitle, systemImage: "crown.fill").font(.caption.bold()).foregroundStyle(AppTheme.gold)
+                Text(store.profileBio).font(.subheadline).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center).lineLimit(3)
+            }
+            HStack(spacing: 12) {
+                Label("\(studyStreak) дн. подряд", systemImage: "flame.fill")
+                Spacer()
+                Text("\(unlocked.count) наград")
+            }.font(.subheadline.bold()).padding(15).background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 18))
+        }.foregroundStyle(.white).padding(24).frame(maxWidth: .infinity)
+            .background { OrbitBackdrop(color: accent) }
+            .clipShape(RoundedRectangle(cornerRadius: 32))
     }
+
+    private var statistics: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 12) {
+            OrbitMetric(title: "Средний балл", value: store.grades.isEmpty ? "—" : String(format: "%.1f", store.study.average), detail: "из 10 баллов", progress: store.study.average / 10, symbol: "star.fill", color: AppTheme.gold)
+            OrbitMetric(title: "Задания", value: "\(store.study.completed)", detail: "из \(store.homework.count) выполнено", progress: store.homework.isEmpty ? 0 : Double(store.study.completed) / Double(store.homework.count), symbol: "checkmark", color: AppTheme.mint)
+            OrbitMetric(title: "Посещение", value: store.attendance.isEmpty ? "—" : "\(Int(attendanceProgress * 100))%", detail: store.attendance.isEmpty ? "Добавь посещения" : "\(store.study.present) занятий", progress: attendanceProgress, symbol: "person.fill.checkmark", color: AppTheme.cyan)
+            OrbitMetric(title: "Достижения", value: "\(unlocked.count)", detail: "из \(achievements.count) открыто", progress: Double(unlocked.count) / Double(max(1, achievements.count)), symbol: "trophy.fill", color: accent)
+        }
+    }
+    private var attendanceProgress: Double { store.attendance.isEmpty ? 0 : Double(store.study.present) / Double(store.attendance.count) }
 
     private var showcase: some View {
         SoftCard {
             VStack(alignment: .leading, spacing: 13) {
                 HStack { Label("Витрина", systemImage: "sparkles").font(store.activeFont(size: 17, relativeTo: .headline).bold()); Spacer(); Text("Лучшие 3").font(store.activeFont(size: 12, relativeTo: .caption).bold()).foregroundStyle(.secondary) }
+                if pinned.isEmpty { Label("Здесь будут твои первые награды. Выполни задание или заполни профиль.", systemImage: "sparkles").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 10) }
                 HStack(alignment: .top, spacing: 9) {
                     ForEach(pinned) { achievement in
                         VStack(spacing: 8) {
@@ -89,10 +108,16 @@ struct ProfileView: View {
 
     private var progressCard: some View {
         SoftCard {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack { Text("Коллекция достижений").font(store.activeFont(size: 17, relativeTo: .headline).bold()); Spacer(); Text("\(unlocked.count) / \(achievements.count)").font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).foregroundStyle(accent) }
-                ProgressView(value: Double(unlocked.count), total: Double(achievements.count)).tint(accent)
-                Text("Зарабатывай награды за задания, оценки, посещения, экзамены, заметки и коллекцию.").font(store.activeFont(size: 12, relativeTo: .caption)).foregroundStyle(.secondary)
+            HStack(spacing: 20) {
+                ZStack {
+                    ProgressRing(progress: Double(unlocked.count % 5) / 5, color: accent, size: 70, lineWidth: 6)
+                    Text("\(level)").font(.system(.title, design: .rounded, weight: .bold))
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Следующий уровень").font(.headline)
+                    Text("Ещё \(5 - unlocked.count % 5) наград до уровня \(level + 1)").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Каждые пять достижений — новый уровень.").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -107,7 +132,7 @@ struct ProfileView: View {
     }
 
     private var achievementGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
             ForEach(shown) { achievement in
                 let unlocked = isUnlocked(achievement)
                 Button { togglePin(achievement) } label: {
@@ -120,18 +145,18 @@ struct ProfileView: View {
                         Text(achievement.title).font(store.activeFont(size: 15, relativeTo: .subheadline).bold()).foregroundStyle(.primary).lineLimit(2)
                         Text(achievement.detail).font(store.activeFont(size: 11, relativeTo: .caption2)).foregroundStyle(.secondary).lineLimit(2)
                         ProgressView(value: Double(min(metricValue(achievement.metric), achievement.target)), total: Double(achievement.target)).tint(unlocked ? rarityColor(achievement.rarity) : .gray)
-                        Text(unlocked ? "Получено · нажми, чтобы закрепить" : "\(metricValue(achievement.metric)) из \(achievement.target)").font(store.activeFont(size: 10, relativeTo: .caption2).bold()).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
+                        Text(unlocked ? (store.pinnedAchievementIDs.contains(achievement.id) ? "Закреплено · нажми, чтобы снять" : "Получено · нажми, чтобы закрепить") : "\(metricValue(achievement.metric)) из \(achievement.target)").font(store.activeFont(size: 10, relativeTo: .caption2).bold()).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
                     }.padding(14).frame(maxWidth: .infinity, minHeight: 166, alignment: .topLeading)
                         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 21))
                         .overlay { RoundedRectangle(cornerRadius: 21).stroke((unlocked ? rarityColor(achievement.rarity) : Color.primary).opacity(0.13)) }
                         .opacity(unlocked ? 1 : 0.72)
-                }.buttonStyle(ScalePressStyle()).disabled(!unlocked)
+                }.buttonStyle(ScalePressStyle()).disabled(!unlocked).revealOnAppear()
             }
         }
     }
 
     private func filterButton(_ title: String, rarity: AchievementRarity?) -> some View {
-        Button { withAnimation(.snappy) { selectedRarity = rarity } } label: {
+        Button { withAnimation(reduceMotion ? nil : .snappy) { selectedRarity = rarity } } label: {
             Text(title).font(store.activeFont(size: 12, relativeTo: .caption).bold()).padding(.horizontal, 14).frame(height: 38)
                 .foregroundStyle(selectedRarity == rarity ? .white : .primary).background(selectedRarity == rarity ? accent : Color.primary.opacity(0.07), in: Capsule())
         }.buttonStyle(ScalePressStyle())
@@ -144,22 +169,22 @@ struct ProfileView: View {
     private func isUnlocked(_ item: Achievement) -> Bool { metricValue(item.metric) >= item.target }
     private func metricValue(_ metric: Achievement.Metric) -> Int {
         switch metric {
-        case .completedHomework: store.homework.filter(\.isDone).count
+        case .completedHomework: store.study.completed
         case .grades: store.grades.count
-        case .excellentGrades: store.grades.filter { $0.value >= 9 }.count
+        case .excellentGrades: store.study.excellent
         case .lessons: store.lessons.count
         case .streak: studyStreak
         case .profile: store.studentName == "Ученик" ? 0 : 1
-        case .attendance: store.attendance.filter(\.wasPresent).count
+        case .attendance: store.study.present
         case .exams: store.exams.count
         case .notes: store.notes.count
         case .collection: store.purchasedMarketIDs.count
         }
     }
-    private var studyStreak: Int { max(1, min(365, Set(store.homework.filter(\.isDone).compactMap { $0.createdAt.map { Calendar.current.startOfDay(for: $0) } }).count)) }
+    private var studyStreak: Int { store.study.streak() }
     private var level: Int { max(1, unlocked.count / 5 + 1) }
     private var initials: String { store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased().isEmpty ? "У" : store.studentName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
-    private var accent: Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][store.accentIndex % 4] }
+    private var accent: Color { [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral][((store.accentIndex % 4) + 4) % 4] }
     private func rarityColor(_ rarity: AchievementRarity) -> Color { switch rarity { case .common: .secondary; case .rare: .blue; case .epic: AppTheme.violet; case .legendary: .orange; case .mythical: .pink } }
 }
 
@@ -250,12 +275,46 @@ struct AchievementBadgeArtwork: View {
 private struct EditProfileView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var bio = ""
+    @State private var accent = 0
+    private let colors = [AppTheme.violet, AppTheme.blue, AppTheme.mint, AppTheme.coral]
+    private let names = ["Фиолетовый", "Синий", "Мятный", "Коралловый"]
+
     var body: some View {
-        NavigationStack { Form {
-            Section("О тебе") { TextField("Имя", text: $store.studentName); TextField("Короткий девиз", text: $store.profileBio, axis: .vertical).lineLimit(2...4) }
-            Section("Цвет профиля") { Picker("Акцент", selection: $store.accentIndex) { Text("Фиолетовый").tag(0); Text("Синий").tag(1); Text("Мятный").tag(2); Text("Коралловый").tag(3) }.pickerStyle(.inline) }
-            Section { NavigationLink { SettingsView() } label: { Label("Все настройки", systemImage: "gearshape.fill") } }
-        }.navigationTitle("Настройка профиля").navigationBarTitleDisplayMode(.inline).toolbar { Button("Готово") { dismiss() } } }
+        NavigationStack {
+            Form {
+                Section("Твой профиль") {
+                    TextField("Имя", text: $name).textContentType(.name)
+                    TextField("Короткий девиз", text: $bio, axis: .vertical).lineLimit(2...4)
+                }
+                Section("Твой цвет") {
+                    HStack(spacing: 18) {
+                        ForEach(0..<4) { index in
+                            Button { accent = index } label: {
+                                Circle().fill(colors[index].gradient).frame(width: 44, height: 44)
+                                    .overlay { if accent == index { Image(systemName: "checkmark").font(.headline).foregroundStyle(.white) } }
+                            }.buttonStyle(ScalePressStyle()).accessibilityLabel(names[index]).accessibilityAddTraits(accent == index ? .isSelected : [])
+                        }
+                    }.padding(.vertical, 8)
+                }
+                Section { NavigationLink { SettingsView() } label: { Label("Все настройки", systemImage: "gearshape.fill") } }
+            }.scrollContentBackground(.hidden).background { AnimatedAppBackground() }
+                .navigationTitle("Это ты").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Сохранить") {
+                            store.studentName = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(50))
+                            store.profileBio = String(bio.trimmingCharacters(in: .whitespacesAndNewlines).prefix(160))
+                            store.accentIndex = accent
+                            dismiss()
+                        }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .onAppear { name = store.studentName; bio = store.profileBio; accent = ((store.accentIndex % 4) + 4) % 4 }
+                .sensoryFeedback(.selection, trigger: accent)
+        }
     }
 }
 

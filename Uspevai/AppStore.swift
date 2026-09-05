@@ -5,9 +5,9 @@ import UserNotifications
 @MainActor
 final class AppStore: ObservableObject {
     @Published var lessons: [Lesson] { didSet { scheduleSave(lessons, key: "lessons") } }
-    @Published var homework: [Homework] { didSet { scheduleSave(homework, key: "homework") } }
-    @Published var grades: [Grade] { didSet { scheduleSave(grades, key: "grades") } }
-    @Published var attendance: [Attendance] { didSet { scheduleSave(attendance, key: "attendance") } }
+    @Published var homework: [Homework] { didSet { scheduleSave(homework, key: "homework"); refreshStudySnapshot() } }
+    @Published var grades: [Grade] { didSet { scheduleSave(grades, key: "grades"); refreshStudySnapshot() } }
+    @Published var attendance: [Attendance] { didSet { scheduleSave(attendance, key: "attendance"); refreshStudySnapshot() } }
     @Published var exams: [Exam] { didSet { scheduleSave(exams, key: "exams") } }
     @Published var notes: [SchoolNote] { didSet { scheduleSave(notes, key: "notes") } }
     @Published var scheduleOverrides: [ScheduleOverride] { didSet { scheduleSave(scheduleOverrides, key: "scheduleOverrides") } }
@@ -18,12 +18,17 @@ final class AppStore: ObservableObject {
     @Published var profileBio: String { didSet { defaults.set(profileBio, forKey: "profileBio") } }
     @Published var accentIndex: Int { didSet { defaults.set(accentIndex, forKey: "accentIndex") } }
     @Published var pinnedAchievementIDs: [String] { didSet { scheduleSave(pinnedAchievementIDs, key: "pinnedAchievementIDs") } }
-    @Published var purchasedMarketIDs: [String] { didSet { scheduleSave(purchasedMarketIDs, key: "purchasedMarketIDs") } }
+    @Published var purchasedMarketIDs: [String] { didSet { scheduleSave(purchasedMarketIDs, key: "purchasedMarketIDs"); ownedMarketIDs = Set(purchasedMarketIDs) } }
     @Published var equippedRingID: String { didSet { defaults.set(equippedRingID, forKey: "equippedRingID") } }
     @Published var equippedFontID: String { didSet { defaults.set(equippedFontID, forKey: "equippedFontID") } }
     @Published var equippedTitleID: String { didSet { defaults.set(equippedTitleID, forKey: "equippedTitleID") } }
     @Published var spentCoins: Int { didSet { defaults.set(spentCoins, forKey: "spentCoins") } }
     @Published var adminCoins: Int { didSet { defaults.set(adminCoins, forKey: "adminCoins") } }
+
+    @Published private(set) var ownedMarketIDs = Set<String>()
+    @Published private(set) var study = StudySnapshot()
+
+    private func refreshStudySnapshot() { study = StudySnapshot(homework: homework, grades: grades, attendance: attendance) }
 
     private let defaults = UserDefaults.standard
     private var pendingSaves: [String: Task<Void, Never>] = [:]
@@ -49,10 +54,18 @@ final class AppStore: ObservableObject {
         equippedTitleID = defaults.string(forKey: "equippedTitleID") ?? ""
         spentCoins = defaults.integer(forKey: "spentCoins")
         adminCoins = defaults.integer(forKey: "adminCoins")
+        if let wallet = Self.load(MarketWallet.self, key: "marketWallet") {
+            purchasedMarketIDs = wallet.productIDs
+            spentCoins = wallet.spent
+        }
         if !defaults.bool(forKey: "migratedToTenPointScale") {
             grades = grades.map { old in var updated = old; updated.value = min(10, old.value * 2); return updated }
+            if let data = try? JSONEncoder().encode(grades) { defaults.set(data, forKey: "grades") }
             defaults.set(true, forKey: "migratedToTenPointScale")
         }
+        refreshStudySnapshot()
+        ownedMarketIDs = Set(purchasedMarketIDs)
+        if defaults.data(forKey: "lessons") == nil { persist(lessons, key: "lessons") }
     }
 
     func requestNotifications() async {
@@ -97,22 +110,24 @@ final class AppStore: ObservableObject {
     }
 
     var earnedCoins: Int {
-        homework.filter(\.isDone).count * 12 + grades.count * 6 + grades.filter { $0.value >= 9 }.count * 4
+        study.completed * 12 + grades.count * 6 + study.excellent * 4
     }
 
     var coinBalance: Int { max(0, earnedCoins + adminCoins - spentCoins) }
 
     @discardableResult
     func buy(_ product: MarketProduct) -> Bool {
-        guard !purchasedMarketIDs.contains(product.id), coinBalance >= product.price else { return false }
+        guard let product = MarketCatalog.product(id: product.id), !purchasedMarketIDs.contains(product.id), product.price >= 0, coinBalance >= product.price else { return false }
         spentCoins += product.price
         purchasedMarketIDs.append(product.id)
+        // One persisted record keeps ownership and spending together after restart.
+        if let data = try? JSONEncoder().encode(MarketWallet(productIDs: purchasedMarketIDs, spent: spentCoins)) { defaults.set(data, forKey: "marketWallet") }
         equip(product)
         return true
     }
 
     func equip(_ product: MarketProduct) {
-        guard purchasedMarketIDs.contains(product.id) || product.price == 0 else { return }
+        guard let product = MarketCatalog.product(id: product.id), purchasedMarketIDs.contains(product.id) || product.price == 0 else { return }
         switch product.kind {
         case .ring: equippedRingID = product.id
         case .font: equippedFontID = product.id
@@ -128,6 +143,25 @@ final class AppStore: ObservableObject {
     func activeFont(size: CGFloat, relativeTo style: Font.TextStyle = .body) -> Font {
         guard let product = MarketCatalog.product(id: equippedFontID) else { return .system(size: size) }
         return .custom(MarketCatalog.fontFamily(for: product), size: size, relativeTo: style)
+    }
+
+    /// Finish pending writes before iOS can suspend the process.
+    func flushSaves() {
+        pendingSaves.values.forEach { $0.cancel() }
+        pendingSaves.removeAll()
+        persist(lessons, key: "lessons")
+        persist(homework, key: "homework")
+        persist(grades, key: "grades")
+        persist(attendance, key: "attendance")
+        persist(exams, key: "exams")
+        persist(notes, key: "notes")
+        persist(scheduleOverrides, key: "scheduleOverrides")
+        persist(pinnedAchievementIDs, key: "pinnedAchievementIDs")
+        persist(purchasedMarketIDs, key: "purchasedMarketIDs")
+    }
+
+    private func persist<T: Encodable>(_ value: T, key: String) {
+        if let data = try? JSONEncoder().encode(value) { defaults.set(data, forKey: key) }
     }
 
     private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {

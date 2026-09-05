@@ -82,3 +82,8 @@ enum SeedData {
         }
     }
 }
+
+struct MarketWallet: Codable {
+    let productIDs: [String]
+    let spent: Int
+}
