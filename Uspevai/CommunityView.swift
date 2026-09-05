@@ -6,6 +6,7 @@ struct CommunityView: View {
     @AppStorage("communityPublished") private var isPublished = false
     @State private var searchCode = ""
     @State private var section = 0
+    @State private var removingFriend: PublicStudentProfile?
     let streak: Int
     let level: Int
     let pinnedAchievementIDs: [String]
@@ -14,11 +15,12 @@ struct CommunityView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 communityHero
+                if !cloud.message.isEmpty { Text(cloud.message).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
                 Picker("Раздел", selection: $section) { Text("Профиль").tag(0); Text("Друзья").tag(1); Text("Все").tag(2); Text("Чаты").tag(3) }.pickerStyle(.segmented)
                 if section == 0 { publishCard }
                 else if section == 1 {
                     searchCard
-                    if let profile = cloud.foundProfile { profileCard(profile, canAdd: true) }
+                    if let profile = cloud.foundProfile { profileCard(profile, canAdd: !cloud.isFriend(profile)) }
                     friendsSection
                 } else if section == 2 { allUsersSection }
                 else { MessengerView(friends: cloud.friends) }
@@ -30,6 +32,9 @@ struct CommunityView: View {
         .overlay { if cloud.isWorking { ProgressView().controlSize(.large).padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20)) } }
         .task { await cloud.connect() }
         .refreshable { await cloud.connect() }
+        .confirmationDialog("Удалить из друзей?", isPresented: Binding(get: { removingFriend != nil }, set: { if !$0 { removingFriend = nil } }), presenting: removingFriend) { profile in
+            Button("Удалить \(profile.name)", role: .destructive) { cloud.removeFriend(profile) }
+        } message: { _ in Text("Диалог сохранится во вкладке «Чаты».") }
     }
 
     private var communityHero: some View {
@@ -67,6 +72,7 @@ struct CommunityView: View {
         SoftCard {
             VStack(alignment: .leading, spacing: 13) {
                 SectionHeader(title: "Найти друга", subtitle: "Введите его восьмизначный код", symbol: "person.badge.plus")
+                Text("Друг открывает Профиль → Сообщество → Профиль, публикует профиль и отправляет тебе свой код. После добавления можно сразу написать.").font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 9) {
                     TextField("Например, A7K9M2QX", text: $searchCode).textInputAutocapitalization(.characters).autocorrectionDisabled().font(.body.monospaced()).padding(.horizontal, 13).frame(height: 48).background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 14))
                     Button { Task { await cloud.search(code: searchCode) } } label: { Image(systemName: "magnifyingglass").font(.headline).foregroundStyle(.white).frame(width: 48, height: 48).background(AppTheme.violet, in: RoundedRectangle(cornerRadius: 14)) }.buttonStyle(ScalePressStyle()).accessibilityLabel("Найти")
@@ -86,7 +92,7 @@ struct CommunityView: View {
     private var allUsersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "Все ученики", subtitle: "Открытые профили сообщества", symbol: "globe.europe.africa.fill")
-            ForEach(cloud.allProfiles) { profile in profileCard(profile, canAdd: !cloud.friends.contains(profile)) }
+            ForEach(cloud.allProfiles) { profile in profileCard(profile, canAdd: !cloud.isFriend(profile)) }
             if cloud.allProfiles.isEmpty { ContentUnavailableView("Пока никого нет", systemImage: "person.3", description: Text("Профили появятся после первой публикации")) }
         }
     }
@@ -109,7 +115,7 @@ struct CommunityView: View {
                     if canAdd { Button("Добавить") { Task { await cloud.add(profile: profile) } }.buttonStyle(.borderedProminent).tint(AppTheme.violet) }
                     else {
                         NavigationLink { StudyChatView(friend: profile) } label: { Image(systemName: "message.fill") }.buttonStyle(.borderedProminent).tint(AppTheme.violet).accessibilityLabel("Написать")
-                        Button(role: .destructive) { cloud.removeFriend(profile) } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга")
+                        Button(role: .destructive) { removingFriend = profile } label: { Image(systemName: "person.badge.minus") }.buttonStyle(.bordered).accessibilityLabel("Удалить друга")
                     }
                 }
             }

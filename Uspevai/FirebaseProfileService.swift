@@ -1,9 +1,10 @@
+import Combine
 import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
 import Foundation
 
-struct PublicStudentProfile: Identifiable, Equatable, Sendable {
+struct PublicStudentProfile: Identifiable, Equatable, Codable, Sendable {
     let id: String
     let ownerID: String
     let name: String
@@ -45,6 +46,13 @@ final class FirebaseProfileService: ObservableObject {
     private let defaults = UserDefaults.standard
     private var database: Firestore? { FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil }
 
+    init() {
+        if let data = defaults.data(forKey: "communityFriendsCache"),
+           let cached = try? JSONDecoder().decode([PublicStudentProfile].self, from: data) {
+            friends = cached.filter { friendCodes.contains($0.id) }
+        }
+    }
+
     var profileCode: String {
         if let saved = defaults.string(forKey: "communityProfileCode") { return saved }
         let code = Self.makeCode()
@@ -64,7 +72,7 @@ final class FirebaseProfileService: ObservableObject {
             return
         }
         do {
-            if Auth.auth().currentUser == nil { _ = try await Auth.auth().signInAnonymously() }
+            _ = try await SocialConnection.userID()
             accountReady = Auth.auth().currentUser != nil
             message = accountReady ? "Firebase подключён" : "Не удалось войти"
             if accountReady { await loadFriends(); await loadAllProfiles() }
@@ -93,6 +101,7 @@ final class FirebaseProfileService: ObservableObject {
     func search(code rawCode: String) async {
         let code = Self.normalized(rawCode)
         guard code.count == 8 else { message = "Введите восьмизначный код"; foundProfile = nil; return }
+        guard code != profileCode else { message = "Это ваш код. Попросите код друга."; foundProfile = nil; return }
         guard let database else { message = "Firebase ещё не подключён"; return }
         isWorking = true
         defer { isWorking = false }
@@ -111,16 +120,30 @@ final class FirebaseProfileService: ObservableObject {
     }
 
     func add(profile foundProfile: PublicStudentProfile) async {
+        do { _ = try await SocialConnection.userID(); accountReady = true }
+        catch { message = friendly(error); return }
+        guard foundProfile.id.count == 8 else { message = "Попросите друга отправить код опубликованного профиля."; return }
         guard foundProfile.ownerID != Auth.auth().currentUser?.uid else { message = "Это ваш собственный профиль"; return }
+        guard !isFriend(foundProfile) else { message = "Уже в друзьях"; return }
         var codes = friendCodes
         if !codes.contains(foundProfile.id) { codes.append(foundProfile.id); friendCodes = codes }
+        friends.append(foundProfile)
+        saveFriendsCache()
         message = "\(foundProfile.name) добавлен в друзья"
-        await loadFriends()
+    }
+
+    func isFriend(_ profile: PublicStudentProfile) -> Bool {
+        friendCodes.contains(profile.id) || friends.contains { $0.ownerID == profile.ownerID }
+    }
+
+    private func saveFriendsCache() {
+        if let data = try? JSONEncoder().encode(friends) { defaults.set(data, forKey: "communityFriendsCache") }
     }
 
     func removeFriend(_ profile: PublicStudentProfile) {
         friendCodes.removeAll { $0 == profile.id }
         friends.removeAll { $0.id == profile.id }
+        saveFriendsCache()
         message = "Пользователь удалён из друзей"
     }
 
@@ -128,16 +151,20 @@ final class FirebaseProfileService: ObservableObject {
         guard let database else { return }
         isWorking = true
         defer { isWorking = false }
-        var loaded: [PublicStudentProfile] = []
-        var availableCodes: [String] = []
+        if friends.isEmpty, let data = defaults.data(forKey: "communityFriendsCache"),
+           let cached = try? JSONDecoder().decode([PublicStudentProfile].self, from: data) {
+            friends = cached.filter { friendCodes.contains($0.id) }
+        }
+        var loaded = friends
         for code in friendCodes {
             guard let snapshot = try? await database.collection("profiles").document(code).getDocument(),
                   snapshot.data()?["isPublic"] as? Bool == true,
                   let profile = Self.profile(from: snapshot) else { continue }
-            loaded.append(profile); availableCodes.append(code)
+            loaded.removeAll { $0.id == profile.id }
+            loaded.append(profile)
         }
         friends = loaded.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        friendCodes = availableCodes
+        saveFriendsCache()
     }
 
     func loadAllProfiles() async {
@@ -162,9 +189,7 @@ final class FirebaseProfileService: ObservableObject {
     }
 
     private func friendly(_ error: Error) -> String {
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain { return "Нет подключения к интернету" }
-        return "Ошибка Firebase: \(error.localizedDescription)"
+        SocialConnection.errorText(error)
     }
 
     private static func makeCode() -> String {

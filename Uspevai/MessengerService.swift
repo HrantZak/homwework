@@ -1,3 +1,4 @@
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 import Foundation
@@ -26,37 +27,50 @@ struct SharedAnalytics: Codable, Sendable {
 final class MessengerService: ObservableObject {
     @Published private(set) var messages: [StudyMessage] = []
     @Published private(set) var isLoading = false
+    @Published private(set) var isSending = false
+    @Published private(set) var isReady = false
     @Published var errorMessage = ""
     private var listener: ListenerRegistration?
+    private var session = UUID()
     private var database: Firestore? { FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil }
-    var currentUserID: String { Auth.auth().currentUser?.uid ?? "" }
+    var currentUserID: String { FirebaseBootstrap.isConfigured ? Auth.auth().currentUser?.uid ?? "" : "" }
 
     deinit { listener?.remove() }
 
     func listen(to profile: PublicStudentProfile, senderName: String) async {
         stop()
-        guard let database, !currentUserID.isEmpty else { errorMessage = "Сначала подключите профиль к Firebase"; return }
-        do { try await prepareChat(database: database, profile: profile, senderName: senderName) }
-        catch { errorMessage = error.localizedDescription; return }
+        let token = session
+        errorMessage = ""
         isLoading = true
+        do {
+            _ = try await SocialConnection.userID()
+            guard !profile.ownerID.isEmpty, profile.ownerID != currentUserID else { throw SocialConnection.ConnectionError.selfChat }
+            guard let database else { throw SocialConnection.ConnectionError.missingConfiguration }
+            try await prepareChat(database: database, profile: profile, senderName: senderName)
+        } catch {
+            guard session == token else { return }
+            isLoading = false; errorMessage = SocialConnection.errorText(error); return
+        }
+        guard session == token, !Task.isCancelled, let database else { return }
+        isReady = true
         listener = database.collection("chats").document(chatID(with: profile.ownerID)).collection("messages")
             .order(by: "sentAt", descending: true).limit(to: 60)
-            .addSnapshotListener { [weak self] snapshot, error in
+            .addSnapshotListener(includeMetadataChanges: true) { [weak self] snapshot, error in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.session == token else { return }
                     self.isLoading = false
-                    if let error { self.errorMessage = error.localizedDescription; return }
+                    if let error { self.isReady = false; self.errorMessage = SocialConnection.errorText(error); return }
                     self.messages = Array((snapshot?.documents ?? []).compactMap(Self.message).reversed())
                 }
             }
     }
 
-    func stop() { listener?.remove(); listener = nil; messages = []; isLoading = false }
+    func stop() { session = UUID(); listener?.remove(); listener = nil; isReady = false; isLoading = false }
 
-    func sendText(_ value: String, to profile: PublicStudentProfile, senderName: String) async {
+    func sendText(_ value: String, to profile: PublicStudentProfile, senderName: String) async -> Bool {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
-        await send(kind: .text, text: String(clean.prefix(2000)), payload: "", to: profile, senderName: senderName)
+        guard !clean.isEmpty else { return false }
+        return await send(kind: .text, text: clean, payload: "", to: profile, senderName: senderName)
     }
 
     func shareSchedule(_ lessons: [Lesson], to profile: PublicStudentProfile, senderName: String) async {
@@ -77,21 +91,30 @@ final class MessengerService: ObservableObject {
         await send(kind: .analytics, text: "Моя учебная аналитика", payload: payload, to: profile, senderName: senderName)
     }
 
-    private func send(kind: StudyMessageKind, text: String, payload: String, to profile: PublicStudentProfile, senderName: String) async {
-        guard let database, !currentUserID.isEmpty else { errorMessage = "Нет подключения к Firebase"; return }
+    @discardableResult
+    private func send(kind: StudyMessageKind, text: String, payload: String, to profile: PublicStudentProfile, senderName: String) async -> Bool {
+        guard !isSending else { return false }
+        guard let database, isReady, !currentUserID.isEmpty else { errorMessage = "Чат ещё не подключён. Нажмите «Повторить подключение»."; return false }
+        guard text.utf8.count <= 2000, payload.utf8.count <= 80000 else { errorMessage = SocialConnection.ConnectionError.oversized.localizedDescription; return false }
+        isSending = true
+        defer { isSending = false }
+        errorMessage = ""
         let id = chatID(with: profile.ownerID)
         let chat = database.collection("chats").document(id)
         do {
-            try await prepareChat(database: database, profile: profile, senderName: senderName)
-            try await chat.collection("messages").addDocument(data: ["senderID": currentUserID, "kind": kind.rawValue, "text": text, "payload": String(payload.prefix(80_000)), "sentAt": FieldValue.serverTimestamp()])
-        } catch { errorMessage = error.localizedDescription }
+            let batch = database.batch()
+            batch.setData(["senderID": currentUserID, "kind": kind.rawValue, "text": text, "payload": payload, "sentAt": FieldValue.serverTimestamp()], forDocument: chat.collection("messages").document())
+            batch.updateData(["updatedAt": FieldValue.serverTimestamp(), "lastMessage": String(text.prefix(120))], forDocument: chat)
+            try await batch.commit()
+            return true
+        } catch { errorMessage = SocialConnection.errorText(error); return false }
     }
 
     private func prepareChat(database: Firestore, profile: PublicStudentProfile, senderName: String) async throws {
         try await database.collection("chats").document(chatID(with: profile.ownerID)).setData([
             "participants": [currentUserID, profile.ownerID].sorted(),
             "participantNames": [currentUserID: senderName, profile.ownerID: profile.name],
-            "updatedAt": FieldValue.serverTimestamp()
+            "participantCodes": [currentUserID: UserDefaults.standard.string(forKey: "communityProfileCode") ?? "", profile.ownerID: profile.id]
         ], merge: true)
     }
 

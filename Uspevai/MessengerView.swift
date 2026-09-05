@@ -3,10 +3,35 @@ import SwiftUI
 
 struct MessengerView: View {
     let friends: [PublicStudentProfile]
+    @StateObject private var inbox = ChatInbox()
+    @State private var query = ""
+    private var newFriends: [PublicStudentProfile] {
+        friends.filter { friend in !inbox.chats.contains { $0.person.ownerID == friend.ownerID } && matches(friend.name) }
+    }
+    private func matches(_ text: String) -> Bool { query.isEmpty || text.localizedCaseInsensitiveContains(query) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Сообщения", subtitle: friends.isEmpty ? "Сначала добавьте друга" : "Личные учебные чаты", symbol: "message.fill")
-            ForEach(friends) { friend in
+            SectionHeader(title: "Сообщения", subtitle: "Входящие и ваши диалоги", symbol: "message.fill")
+            TextField("Поиск по имени", text: $query).textFieldStyle(.roundedBorder)
+            if inbox.isLoading { ProgressView("Загружаю диалоги…") }
+            if !inbox.error.isEmpty {
+                Text(inbox.error).font(.caption).foregroundStyle(.orange)
+                Button("Повторить") { Task { await inbox.start() } }
+            }
+            ForEach(inbox.chats.filter { matches($0.person.name) }) { chat in
+                NavigationLink { StudyChatView(friend: friends.first { $0.ownerID == chat.person.ownerID } ?? chat.person) } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill").foregroundStyle(AppTheme.violet)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(chat.person.name).font(.headline)
+                            Text(chat.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption)
+                    }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                }.buttonStyle(.plain)
+            }
+            ForEach(newFriends) { friend in
                 NavigationLink { StudyChatView(friend: friend) } label: {
                     HStack(spacing: 13) {
                         AvatarRingView(ringID: friend.ringID.isEmpty ? "ring-0" : friend.ringID, size: 50, animated: false) { Text(initials(friend.name)).font(.headline.bold()).foregroundStyle(.white).frame(width: 39, height: 39).background(AppTheme.violet.gradient, in: Circle()) }
@@ -15,8 +40,8 @@ struct MessengerView: View {
                     }.padding(15).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
                 }.buttonStyle(ScalePressStyle())
             }
-            if friends.isEmpty { ContentUnavailableView("Чатов пока нет", systemImage: "bubble.left.and.bubble.right", description: Text("Добавьте пользователя в друзья, чтобы начать общение")) }
-        }
+            if friends.isEmpty && inbox.chats.isEmpty && !inbox.isLoading && inbox.error.isEmpty { ContentUnavailableView("Чатов пока нет", systemImage: "bubble.left.and.bubble.right", description: Text("Добавьте друга или дождитесь первого входящего сообщения")) }
+        }.task { await inbox.start() }.onDisappear { inbox.stop() }
     }
     private func initials(_ name: String) -> String { name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
 }
@@ -24,8 +49,10 @@ struct MessengerView: View {
 struct StudyChatView: View {
     @EnvironmentObject private var store: AppStore
     @StateObject private var messenger = MessengerService()
+    @StateObject private var contacts = FirebaseProfileService()
     @State private var draft = ""
     @State private var showShareConfirmation: ShareKind?
+    @Environment(\.scenePhase) private var scenePhase
     let friend: PublicStudentProfile
 
     var body: some View {
@@ -33,23 +60,41 @@ struct StudyChatView: View {
             ScrollView {
                 LazyVStack(spacing: 10) {
                     privacyBanner
+                    if !contacts.message.isEmpty { Text(contacts.message).font(.caption).foregroundStyle(.secondary) }
+                    if !messenger.isReady && !messenger.isLoading {
+                        Button("Повторить подключение") { Task { await messenger.listen(to: friend, senderName: store.studentName) } }.buttonStyle(.bordered)
+                    }
+                    if messenger.isSending { ProgressView("Ожидаю подтверждение сервера…").font(.caption) }
                     if messenger.isLoading { ProgressView().padding() }
-                    ForEach(messenger.messages) { message in MessageBubble(message: message, isMine: message.senderID == messenger.currentUserID).id(message.id) }
+                    ForEach(messenger.messages) { message in MessageBubble(message: message, isMine: message.senderID == messenger.currentUserID).equatable().id(message.id) }
                     if messenger.messages.isEmpty && !messenger.isLoading { ContentUnavailableView("Начните разговор", systemImage: "hand.wave.fill", description: Text("Можно отправить сообщение или учебную карточку")) }
                 }.padding()
             }
             .background { AnimatedAppBackground() }
-            .onChange(of: messenger.messages.count) { _, _ in if let id = messenger.messages.last?.id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) } } }
+            .onChange(of: messenger.messages.last?.id) { _, id in if let id { proxy.scrollTo(id, anchor: .bottom) } }
         }
         .navigationTitle(friend.name).navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(contacts.isFriend(friend) ? "В друзьях" : "Добавить") { Task { await contacts.add(profile: friend) } }
+                    .disabled(contacts.isFriend(friend))
+            }
+        }
         .safeAreaInset(edge: .bottom) { composer }
-        .task { await messenger.listen(to: friend, senderName: store.studentName) }
-        .onDisappear { messenger.stop() }
+        .task {
+            draft = UserDefaults.standard.string(forKey: "chatDraft-\(friend.ownerID)") ?? ""
+            await messenger.listen(to: friend, senderName: store.studentName)
+        }
+        .onDisappear { UserDefaults.standard.set(draft, forKey: "chatDraft-\(friend.ownerID)"); messenger.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await messenger.listen(to: friend, senderName: store.studentName) } }
+            else { UserDefaults.standard.set(draft, forKey: "chatDraft-\(friend.ownerID)"); messenger.stop() }
+        }
         .confirmationDialog("Что отправить?", isPresented: Binding(get: { showShareConfirmation != nil }, set: { if !$0 { showShareConfirmation = nil } }), presenting: showShareConfirmation) { kind in
             Button(kind.actionTitle) { Task { await share(kind) } }
             Button("Отмена", role: .cancel) {}
         } message: { kind in Text(kind.warning) }
-        .alert("Не удалось отправить", isPresented: Binding(get: { !messenger.errorMessage.isEmpty }, set: { if !$0 { messenger.errorMessage = "" } })) { Button("Хорошо") { messenger.errorMessage = "" } } message: { Text(messenger.errorMessage) }
+        .alert("Сообщения", isPresented: Binding(get: { !messenger.errorMessage.isEmpty }, set: { if !$0 { messenger.errorMessage = "" } })) { Button("Хорошо") { messenger.errorMessage = "" } } message: { Text(messenger.errorMessage) }
     }
 
     private var privacyBanner: some View { Label("Только вы и \(friend.name) видите этот чат", systemImage: "lock.fill").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 8).background(.thinMaterial, in: Capsule()) }
@@ -58,15 +103,23 @@ struct StudyChatView: View {
             Menu { Button { showShareConfirmation = .schedule } label: { Label("Расписание", systemImage: "calendar") }; Button { showShareConfirmation = .grades } label: { Label("Оценки", systemImage: "star.fill") }; Button { showShareConfirmation = .analytics } label: { Label("Круг аналитики", systemImage: "chart.pie.fill") } } label: { Image(systemName: "plus").font(.headline).frame(width: 42, height: 42).background(AppTheme.violet.opacity(0.12), in: Circle()) }.accessibilityLabel("Прикрепить")
             TextField("Сообщение", text: $draft, axis: .vertical).lineLimit(1...4).padding(.horizontal, 14).padding(.vertical, 11).background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
             Button { send() } label: { Image(systemName: "arrow.up").font(.headline.bold()).foregroundStyle(.white).frame(width: 42, height: 42).background(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : AppTheme.violet, in: Circle()) }.disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Отправить")
-        }.padding(.horizontal).padding(.vertical, 9).background(.ultraThinMaterial)
+        }.disabled(!messenger.isReady || messenger.isSending).padding(.horizontal).padding(.vertical, 9).background(.ultraThinMaterial)
     }
-    private func send() { let value = draft; draft = ""; Task { await messenger.sendText(value, to: friend, senderName: store.studentName) } }
+    private func send() {
+        let value = draft
+        UserDefaults.standard.set(value, forKey: "chatDraft-\(friend.ownerID)")
+        Task {
+            if await messenger.sendText(value, to: friend, senderName: store.studentName), draft == value {
+                draft = ""; UserDefaults.standard.removeObject(forKey: "chatDraft-\(friend.ownerID)")
+            }
+        }
+    }
     private func share(_ kind: ShareKind) async { switch kind { case .schedule: await messenger.shareSchedule(store.lessons, to: friend, senderName: store.studentName); case .grades: await messenger.shareGrades(store.grades, to: friend, senderName: store.studentName); case .analytics: await messenger.shareAnalytics(grades: store.grades, homework: store.homework, to: friend, senderName: store.studentName) } }
 }
 
 private enum ShareKind: String, Identifiable { case schedule, grades, analytics; var id: String { rawValue }; var actionTitle: String { switch self { case .schedule: "Отправить расписание"; case .grades: "Отправить оценки"; case .analytics: "Отправить аналитику" } }; var warning: String { switch self { case .schedule: "Друг увидит предметы, дни и время уроков."; case .grades: "Друг увидит последние 30 оценок и названия предметов."; case .analytics: "Друг увидит средний балл и общую статистику заданий." } } }
 
-private struct MessageBubble: View {
+private struct MessageBubble: View, Equatable {
     let message: StudyMessage; let isMine: Bool
     var body: some View { HStack { if isMine { Spacer(minLength: 45) }; content.padding(12).background(isMine ? AppTheme.violet : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 19)).foregroundStyle(isMine ? Color.white : Color.primary).opacity(message.isPending ? 0.65 : 1); if !isMine { Spacer(minLength: 45) } }.accessibilityElement(children: .combine) }
     @ViewBuilder private var content: some View {
