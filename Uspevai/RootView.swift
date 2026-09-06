@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var store: AppStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("interfaceMotionEnabled") private var motionEnabled = true
     @State private var selection = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -17,7 +16,7 @@ struct RootView: View {
                 ProfileView().tabItem { Label("Профиль", systemImage: "person.crop.circle.fill") }.tag(4)
             }.font(store.activeAppFont).tint(AppTheme.violet).toolbarBackground(.regularMaterial, for: .tabBar).toolbarBackground(.visible, for: .tabBar)
                 .sensoryFeedback(.selection, trigger: selection)
-                .environment(\.accessibilityReduceMotion, reduceMotion || !motionEnabled)
+                .environment(\.appReduceMotion, !motionEnabled)
         }.onChange(of: scenePhase) { _, phase in if phase != .active { store.flushSaves() } }.task {
             store.refreshNotifications()
             if store.remindersEnabled { await store.requestNotifications() }

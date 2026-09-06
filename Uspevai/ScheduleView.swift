@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ScheduleView: View {
     @EnvironmentObject var store: AppStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var selectedDate = Date()
     @State private var showImport = false
     @State private var showScheduleManager = false

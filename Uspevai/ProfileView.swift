@@ -4,7 +4,7 @@ struct ProfileView: View {
     @EnvironmentObject private var store: AppStore
     @State private var selectedRarity: AchievementRarity?
     @State private var editingProfile = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var onlyUnlocked = false
 
     private var achievements: [Achievement] { AchievementCatalog.all }

@@ -37,7 +37,7 @@ enum MarketCatalog {
 
 struct MarketplaceView: View {
     @EnvironmentObject private var store: AppStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var kind: MarketProductKind = .ring
     @State private var showAdmin = false
     @State private var selectedProduct: MarketProduct?
@@ -207,7 +207,7 @@ struct AvatarRingView<Content: View>: View {
     let size: CGFloat
     let animated: Bool
     let content: Content
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var rotates = false
     @State private var visible = false
@@ -245,7 +245,7 @@ struct AvatarRingView<Content: View>: View {
 private struct MarketProductDetailView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     let product: MarketProduct
     @State private var typedText = ""
     @State private var titleGlow = false

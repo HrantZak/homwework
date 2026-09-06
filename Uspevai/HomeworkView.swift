@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HomeworkView: View {
     @EnvironmentObject var store: AppStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var showAdd = false
     @State private var filter = 0
     private var visibleIDs: [UUID] {

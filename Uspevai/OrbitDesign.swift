@@ -6,7 +6,7 @@ struct ProgressRing: View {
     let color: Color
     var size: CGFloat = 96
     var lineWidth: CGFloat = 8
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var appeared = false
 
     private var fraction: Double { progress.isFinite ? min(1, max(0, progress)) : 0 }
@@ -69,7 +69,7 @@ struct OrbitBackdrop: View {
 }
 
 struct RevealEffect: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var appeared = false
     func body(content: Content) -> some View {
         content.opacity(appeared ? 1 : 0)
@@ -123,7 +123,7 @@ struct FocusSessionSheet: View {
 
 struct GradeDonut: View {
     let counts: [Int]
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var appeared = false
     private let colors = [AppTheme.mint, AppTheme.cyan, AppTheme.gold, AppTheme.coral]
     private var groups: [Int] { [8...10, 6...7, 4...5, 1...3].map { range in range.reduce(0) { $0 + (counts.indices.contains($1) ? counts[$1] : 0) } } }

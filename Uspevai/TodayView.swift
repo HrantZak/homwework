@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject var store: AppStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppReduceMotion private var reduceMotion
     @State private var showAdd = false
     @State private var showFocus = false
     @State private var homeworkLesson: Lesson?
