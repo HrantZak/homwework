@@ -60,6 +60,11 @@ struct StudyChatView: View {
             ScrollView {
                 LazyVStack(spacing: 10) {
                     privacyBanner
+                    Label(messenger.isOnline ? "Сеть доступна" : "Нет сети · сообщения остаются в очереди", systemImage: messenger.isOnline ? "wifi" : "wifi.slash").font(.caption).foregroundStyle(.secondary)
+                    ForEach(messenger.outbox.filter { queued in !messenger.messages.contains { $0.id == queued.id } }) { queued in
+                        HStack { Spacer(); VStack(alignment: .trailing, spacing: 5) { Text(queued.text); Label("Ожидает отправки", systemImage: "clock").font(.caption) }.padding(14).background(AppTheme.violet.opacity(0.12), in: RoundedRectangle(cornerRadius: 18)) }
+                    }
+                    if !messenger.outbox.isEmpty { Button("Повторить отправку · \(messenger.outbox.count)") { Task { await messenger.retryOutbox() } }.disabled(messenger.isSending || !messenger.isOnline) }
                     if !contacts.message.isEmpty { Text(contacts.message).font(.caption).foregroundStyle(.secondary) }
                     if !messenger.isReady && !messenger.isLoading {
                         Button("Повторить подключение") { Task { await messenger.listen(to: friend, senderName: store.studentName) } }.buttonStyle(.bordered)
@@ -100,10 +105,10 @@ struct StudyChatView: View {
     private var privacyBanner: some View { Label("Только вы и \(friend.name) видите этот чат", systemImage: "lock.fill").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 8).background(.thinMaterial, in: Capsule()) }
     private var composer: some View {
         HStack(spacing: 10) {
-            Menu { Button { showShareConfirmation = .schedule } label: { Label("Расписание", systemImage: "calendar") }; Button { showShareConfirmation = .grades } label: { Label("Оценки", systemImage: "star.fill") }; Button { showShareConfirmation = .analytics } label: { Label("Круг аналитики", systemImage: "chart.pie.fill") } } label: { Image(systemName: "plus").font(.headline).frame(width: 42, height: 42).background(AppTheme.violet.opacity(0.12), in: Circle()) }.accessibilityLabel("Прикрепить")
+            Menu { Button { showShareConfirmation = .homework } label: { Label("Задания", systemImage: "checklist") }; Button { showShareConfirmation = .schedule } label: { Label("Расписание", systemImage: "calendar") }; Button { showShareConfirmation = .grades } label: { Label("Оценки", systemImage: "star.fill") }; Button { showShareConfirmation = .analytics } label: { Label("Круг аналитики", systemImage: "chart.pie.fill") } } label: { Image(systemName: "plus").font(.headline).frame(width: 42, height: 42).background(AppTheme.violet.opacity(0.12), in: Circle()) }.accessibilityLabel("Прикрепить")
             TextField("Сообщение", text: $draft, axis: .vertical).lineLimit(1...4).padding(.horizontal, 14).padding(.vertical, 11).background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
             Button { send() } label: { Image(systemName: "arrow.up").font(.headline.bold()).foregroundStyle(.white).frame(width: 42, height: 42).background(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : AppTheme.violet, in: Circle()) }.disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityLabel("Отправить")
-        }.disabled(!messenger.isReady || messenger.isSending).padding(.horizontal).padding(.vertical, 9).background(.ultraThinMaterial)
+        }.padding(.horizontal).padding(.vertical, 9).background(.ultraThinMaterial)
     }
     private func send() {
         let value = draft
@@ -114,12 +119,14 @@ struct StudyChatView: View {
             }
         }
     }
-    private func share(_ kind: ShareKind) async { switch kind { case .schedule: await messenger.shareSchedule(store.lessons, to: friend, senderName: store.studentName); case .grades: await messenger.shareGrades(store.grades, to: friend, senderName: store.studentName); case .analytics: await messenger.shareAnalytics(grades: store.grades, homework: store.homework, to: friend, senderName: store.studentName) } }
+    private func share(_ kind: ShareKind) async { switch kind { case .homework: await messenger.shareHomework(store.homework, to: friend, senderName: store.studentName); case .schedule: await messenger.shareSchedule(store.lessons, to: friend, senderName: store.studentName); case .grades: await messenger.shareGrades(store.grades, to: friend, senderName: store.studentName); case .analytics: await messenger.shareAnalytics(grades: store.grades, homework: store.homework, to: friend, senderName: store.studentName) } }
 }
 
-private enum ShareKind: String, Identifiable { case schedule, grades, analytics; var id: String { rawValue }; var actionTitle: String { switch self { case .schedule: "Отправить расписание"; case .grades: "Отправить оценки"; case .analytics: "Отправить аналитику" } }; var warning: String { switch self { case .schedule: "Друг увидит предметы, дни и время уроков."; case .grades: "Друг увидит последние 30 оценок и названия предметов."; case .analytics: "Друг увидит средний балл и общую статистику заданий." } } }
+private enum ShareKind: String, Identifiable { case schedule, grades, analytics, homework; var id: String { rawValue }; var actionTitle: String { switch self { case .homework: "Отправить задания"; case .schedule: "Отправить расписание"; case .grades: "Отправить оценки"; case .analytics: "Отправить аналитику" } }; var warning: String { switch self { case .homework: "Друг увидит до 50 активных заданий, предметы и сроки. Он сможет принять их в свой список."; case .schedule: "Друг увидит предметы, дни и время уроков."; case .grades: "Друг увидит последние 30 оценок и названия предметов."; case .analytics: "Друг увидит средний балл и общую статистику заданий." } } }
 
 private struct MessageBubble: View, Equatable {
+    @State private var showImport = false
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.message == rhs.message && lhs.isMine == rhs.isMine }
     let message: StudyMessage; let isMine: Bool
     var body: some View { HStack { if isMine { Spacer(minLength: 45) }; content.padding(12).background(isMine ? AppTheme.violet : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 19)).foregroundStyle(isMine ? Color.white : Color.primary).opacity(message.isPending ? 0.65 : 1); if !isMine { Spacer(minLength: 45) } }.accessibilityElement(children: .combine) }
     @ViewBuilder private var content: some View {
@@ -129,6 +136,14 @@ private struct MessageBubble: View, Equatable {
             case .schedule: scheduleCard
             case .grades: gradesCard
             case .analytics: analyticsCard
+            }
+            if !isMine && (message.kind == .schedule || (message.kind == .text && !message.payload.isEmpty)) {
+                Button("Посмотреть и принять") { showImport = true }.buttonStyle(.bordered)
+                    .sheet(isPresented: $showImport) {
+                        IncomingPlanView(messageID: message.id,
+                            lessons: message.kind == .schedule ? ((try? JSONDecoder().decode([Lesson].self, from: Data(message.payload.utf8))) ?? []) : [],
+                            homework: message.kind == .text ? ((try? JSONDecoder().decode([Homework].self, from: Data(message.payload.utf8))) ?? []) : [])
+                    }
             }
             HStack(spacing: 4) { Text(message.sentAt.formatted(date: .omitted, time: .shortened)); if isMine { Image(systemName: message.isPending ? "clock" : "checkmark") } }.font(.system(size: 9)).opacity(0.65).frame(maxWidth: .infinity, alignment: .trailing)
         }.frame(maxWidth: 290, alignment: .leading)

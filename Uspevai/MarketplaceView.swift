@@ -173,7 +173,7 @@ struct MarketplaceView: View {
                     Image(systemName: "arrow.up.right").font(.caption2)
                 }.font(.caption.bold()).foregroundStyle(selected ? AppTheme.mint : AppTheme.violet)
                     .padding(11).background((selected ? AppTheme.mint : AppTheme.violet).opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-            }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 25))
+            }.padding(12).background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 25))
                 .overlay { RoundedRectangle(cornerRadius: 25).stroke(selected ? AppTheme.mint.opacity(0.65) : tint.opacity(0.14), lineWidth: 1) }
         }.buttonStyle(ScalePressStyle())
     }
@@ -367,7 +367,7 @@ private struct MarketProductDetailView: View {
                 try? await Task.sleep(for: .milliseconds(58))
             }
         } else if product.kind == .title, !reduceMotion {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.6)) { titleGlow = true }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { titleGlow = true }
         }
     }
 }

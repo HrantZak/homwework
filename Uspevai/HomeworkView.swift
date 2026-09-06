@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeworkView: View {
     @EnvironmentObject var store: AppStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAdd = false
     @State private var filter = 0
     private var visibleIDs: [UUID] {
@@ -23,22 +24,36 @@ struct HomeworkView: View {
                 ForEach(visibleIDs, id: \.self) { id in
                     if let index = store.homework.firstIndex(where: { $0.id == id }) {
                     let item = store.homework[index]
-                    Button { withAnimation(.bouncy) { store.homework[index].isDone.toggle() } } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                    Button { withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { store.homework[index].isDone.toggle() } } label: {
                         HStack(spacing: 14) {
                             Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle").font(.title2).foregroundStyle(item.isDone ? AppTheme.mint : .secondary)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.text).strikethrough(item.isDone).foregroundStyle(.primary)
                                 Text("\(item.lessonTitle) • \(dueText(item.dueDate, done: item.isDone))").font(.caption).foregroundStyle(!item.isDone && item.dueDate < Calendar.current.startOfDay(for: .now) ? AppTheme.coral : .secondary)
                             }
-                        }.padding(.vertical, 6)
+                        }.padding(.vertical, 12)
                     }.buttonStyle(.plain)
+                        .listRowBackground(AppTheme.surface)
+                        .accessibilityHint(item.isDone ? "Отметить невыполненным" : "Отметить выполненным")
+                    NavigationLink { TaskStepsView(homeworkID: item.id) } label: { Label("Разбить на шаги", systemImage: "list.bullet.indent") }.font(.caption)
+                    }.listRowBackground(AppTheme.surface)
                     }
                 }.onDelete { offsets in
                     let ids = offsets.map { visibleIDs[$0] }
-                    store.homework.removeAll { ids.contains($0.id) }
+                    store.deleteHomework(ids: ids)
                 }
-            }.scrollContentBackground(.hidden).background { AnimatedAppBackground() }.overlay { if visibleIDs.isEmpty { ContentUnavailableView(store.homework.isEmpty ? "Заданий пока нет" : "Здесь пока пусто", systemImage: "checkmark.seal", description: Text(store.homework.isEmpty ? "Добавь первое задание кнопкой +" : "Выбери другой фильтр")) } }
-                .navigationTitle("Задания").toolbar { Button { showAdd = true } label: { Image(systemName: "plus") } }
+                if visibleIDs.isEmpty {
+                    ContentUnavailableView {
+                        Label(store.homework.isEmpty ? "Начнём с одного задания" : "Здесь всё спокойно", systemImage: "checkmark.seal")
+                    } description: {
+                        Text(store.homework.isEmpty ? "Запиши, что нужно сделать. Остальное — шаг за шагом." : "В этом фильтре заданий нет. Можно выбрать другой.")
+                    } actions: {
+                        Button("Добавить задание") { showAdd = true }.buttonStyle(.borderedProminent)
+                    }.listRowBackground(Color.clear)
+                }
+            }.scrollContentBackground(.hidden).background { AnimatedAppBackground() }
+                .navigationTitle("Задания").toolbar { Button { showAdd = true } label: { Image(systemName: "plus") }.accessibilityLabel("Добавить задание") }
                 .sheet(isPresented: $showAdd) { AddHomeworkView() }
         }
     }
@@ -46,22 +61,16 @@ struct HomeworkView: View {
     private var homeworkSummary: some View {
         let done = store.homework.filter(\.isDone).count
         let active = store.homework.count - done
-        return ZStack(alignment: .bottomLeading) {
-            AppTheme.heroGradient
-            Circle().fill(.white.opacity(0.12)).frame(width: 130).offset(x: 250, y: -42)
-            VStack(alignment: .leading, spacing: 13) {
+        return VStack(alignment: .leading, spacing: 18) {
                 Label("МОЙ ПРОГРЕСС", systemImage: "checkmark.seal.fill").font(.caption.bold()).tracking(1.2).opacity(0.78)
-                HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("\(active)").font(.system(size: 36, weight: .heavy, design: .rounded)).contentTransition(.numericText())
                     Text(active == 1 ? "задание осталось" : "заданий осталось").font(.subheadline.bold()).opacity(0.82)
-                    Spacer()
                     Text("\(done) готово").font(.caption.bold()).padding(.horizontal, 11).frame(height: 32).background(.white.opacity(0.13), in: Capsule())
                 }
                 ProgressView(value: Double(done), total: Double(max(1, store.homework.count))).tint(.white)
-            }.foregroundStyle(.white).padding(20)
-        }.frame(height: 150).clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 28).stroke(.white.opacity(0.16)) }
-            .shadow(color: AppTheme.violet.opacity(0.25), radius: 20, y: 10)
+            }.foregroundStyle(.white).padding(24).frame(maxWidth: .infinity, alignment: .leading)
+            .background { OrbitBackdrop() }.clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     private func dueText(_ date: Date, done: Bool) -> String {

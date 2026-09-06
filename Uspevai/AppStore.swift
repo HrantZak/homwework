@@ -4,6 +4,8 @@ import UserNotifications
 
 @MainActor
 final class AppStore: ObservableObject {
+    @Published var planner: PlannerData { didSet { persist(planner, key: "planner.v1") } }
+    @Published private(set) var saveMessage = "Сохранено на устройстве"
     @Published var lessons: [Lesson] { didSet { scheduleSave(lessons, key: "lessons") } }
     @Published var homework: [Homework] { didSet { scheduleSave(homework, key: "homework"); refreshStudySnapshot() } }
     @Published var grades: [Grade] { didSet { scheduleSave(grades, key: "grades"); refreshStudySnapshot() } }
@@ -34,6 +36,7 @@ final class AppStore: ObservableObject {
     private var pendingSaves: [String: Task<Void, Never>] = [:]
 
     init() {
+        planner = Self.load(PlannerData.self, key: "planner.v1") ?? PlannerData()
         lessons = Self.load([Lesson].self, key: "lessons") ?? SeedData.lessons
         homework = Self.load([Homework].self, key: "homework") ?? []
         grades = Self.load([Grade].self, key: "grades") ?? []
@@ -80,6 +83,7 @@ final class AppStore: ObservableObject {
 
     func replaceLessons(_ imported: [Lesson]) {
         guard !imported.isEmpty else { return }
+        archiveSchedule()
         lessons = imported.sorted { ($0.weekday, $0.order) < ($1.weekday, $1.order) }
         scheduleNotifications()
     }
@@ -161,10 +165,15 @@ final class AppStore: ObservableObject {
     }
 
     private func persist<T: Encodable>(_ value: T, key: String) {
-        if let data = try? JSONEncoder().encode(value) { defaults.set(data, forKey: key) }
+        do {
+            let data = try JSONEncoder().encode(value)
+            defaults.set(data, forKey: key)
+            saveMessage = pendingSaves.isEmpty ? "Сохранено на устройстве" : "Сохраняю…"
+        } catch { saveMessage = "Не удалось сохранить. Не закрывай приложение и повтори сохранение." }
     }
 
     private func scheduleSave<T: Encodable & Sendable>(_ value: T, key: String) {
+        saveMessage = "Сохраняю…"
         pendingSaves[key]?.cancel()
         pendingSaves[key] = Task {
             try? await Task.sleep(for: .milliseconds(150))
@@ -172,8 +181,11 @@ final class AppStore: ObservableObject {
             let data = await Task.detached(priority: .utility) {
                 try? JSONEncoder().encode(value)
             }.value
-            guard !Task.isCancelled, let data else { return }
+            guard !Task.isCancelled else { return }
+            guard let data else { self.saveMessage = "Ошибка сохранения. Нажми «Сохранить сейчас» в разделе «Мой план»."; return }
             UserDefaults.standard.set(data, forKey: key)
+            self.pendingSaves.removeValue(forKey: key)
+            self.saveMessage = self.pendingSaves.isEmpty ? "Сохранено на устройстве" : "Сохраняю…"
         }
     }
 

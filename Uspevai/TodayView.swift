@@ -2,7 +2,9 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject var store: AppStore
-    @State private var heroMoves = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showAdd = false
+    @State private var showFocus = false
     @State private var homeworkLesson: Lesson?
     private var openHomework: [Homework] {
         store.homework.filter { !$0.isDone }.sorted { $0.dueDate < $1.dueDate }
@@ -16,32 +18,18 @@ struct TodayView: View {
                 let next = nextLesson(in: today, now: timeline.date)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                    ZStack(alignment: .bottomLeading) {
-                        AppTheme.heroGradient
-                        Circle().fill(.white.opacity(0.13)).frame(width: 210).offset(x: heroMoves ? 205 : 260, y: heroMoves ? -50 : -90)
-                        Circle().fill(AppTheme.cyan.opacity(0.28)).frame(width: 110).blur(radius: 4).offset(x: -135, y: 85)
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                StatusPill(title: timeline.date.formatted(.dateTime.weekday(.wide)), symbol: "sun.max.fill", color: .white)
-                                Spacer()
-                                Text(timeline.date.formatted(.dateTime.day().month(.abbreviated))).font(.subheadline.bold()).opacity(0.78)
-                            }
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(today.isEmpty ? "Можно выдохнуть" : "В ритме учёбы").font(.caption.bold()).tracking(1.3).opacity(0.72)
-                                Text(today.isEmpty ? "Сегодня отдыхаем" : "Сегодня \(lessonCountText(today.count))").font(.system(size: 31, weight: .heavy, design: .rounded))
-                            }
-                            HStack(spacing: 8) {
-                                heroMetric("\(completed)/\(today.count)", "пройдено", "checkmark.circle.fill")
-                                heroMetric("\(openHomework.count)", "заданий", "book.closed.fill")
-                                heroMetric(next?.startsAt ?? "—", "следующий", "clock.fill")
-                            }
-                        }.foregroundStyle(.white).padding(22)
-                    }.frame(height: 235).clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-                        .overlay { RoundedRectangle(cornerRadius: 32).stroke(.white.opacity(0.18)) }
-                        .shadow(color: AppTheme.violet.opacity(0.30), radius: 24, y: 13)
-                        .onAppear { withAnimation(.spring(response: 0.8, dampingFraction: 0.82)) { heroMoves = true } }
-
-                    if !today.isEmpty { dayProgress(completed: completed, total: today.count) }
+                    dashboardHero(date: timeline.date, completed: completed, total: today.count, next: next)
+                    NavigationLink { PlannerView() } label: {
+                        DashboardAction(title: "Мой план", subtitle: "Что делать сейчас · завтра · цели", symbol: "list.bullet.clipboard.fill", color: AppTheme.violet)
+                    }.buttonStyle(ScalePressStyle())
+                    HStack(spacing: 12) {
+                        Button { showAdd = true } label: {
+                            DashboardAction(title: "Записать", subtitle: "Новое задание", symbol: "plus", color: AppTheme.violet)
+                        }
+                        Button { showFocus = true } label: {
+                            DashboardAction(title: "Сфокусироваться", subtitle: "Таймер работы", symbol: "timer", color: AppTheme.blue)
+                        }
+                    }.buttonStyle(ScalePressStyle())
                     if let active = activeLesson(in: today, now: timeline.date) { activeLessonCard(active) }
                     if let homework = openHomework.first { homeworkFocus(homework) }
 
@@ -50,9 +38,61 @@ struct TodayView: View {
                     ForEach(today) { lesson in LessonRow(lesson: lesson) }
                     }.padding()
                 }.background { AnimatedAppBackground() }
-            }.navigationTitle("Успевай")
+            }.navigationTitle("Сегодня")
+                .toolbar { NavigationLink { SettingsView() } label: { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Настройки") }
                 .sheet(item: $homeworkLesson) { lesson in SmartHomeworkEntryView(lesson: lesson, lessonDate: .now).presentationDetents([.large]) }
+                .sheet(isPresented: $showAdd) { AddHomeworkView() }
+                .sheet(isPresented: $showFocus) { FocusSessionSheet() }
         }
+    }
+
+    private func dashboardHero(date: Date, completed: Int, total: Int, next: Lesson?) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack {
+                Label(date.formatted(.dateTime.day().month(.wide)), systemImage: "sun.max.fill")
+                Spacer()
+                Text(date.formatted(.dateTime.weekday(.abbreviated))).textCase(.uppercase)
+            }.font(.caption.bold()).foregroundStyle(.white.opacity(0.8))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) {
+                    heroHeadline(total: total, completed: completed)
+                    Spacer(minLength: 0)
+                    dailyRing(completed: completed, total: total)
+                }
+                VStack(alignment: .leading, spacing: 20) {
+                    heroHeadline(total: total, completed: completed)
+                    dailyRing(completed: completed, total: total)
+                }
+            }
+            HStack(spacing: 8) {
+                heroMetric("\(openHomework.count)", "заданий", "book.closed.fill")
+                heroMetric(next?.startsAt ?? "—", next == nil ? "уроков больше нет" : "ближайший урок", "clock.fill")
+            }
+        }.foregroundStyle(.white).padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background { OrbitBackdrop() }
+            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .revealOnAppear()
+    }
+
+    private func heroHeadline(total: Int, completed: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ТВОЙ РИТМ").font(.caption.bold()).tracking(2).foregroundStyle(AppTheme.mint)
+            Text(total == 0 ? "Время для себя" : completed == total ? "Ты справился!" : "Шаг за шагом.")
+                .font(.system(.largeTitle, design: .rounded, weight: .bold)).fixedSize(horizontal: false, vertical: true)
+            Text(total == 0 ? "Отдохни или займись любимым делом." : "Сегодня \(lessonCountText(total)). Всё получится.")
+                .font(.subheadline).foregroundStyle(.white.opacity(0.8)).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func dailyRing(completed: Int, total: Int) -> some View {
+        ZStack {
+            ProgressRing(progress: Double(completed) / Double(max(1, total)), color: AppTheme.mint, size: 88, lineWidth: 7)
+            VStack(spacing: 2) {
+                Text("\(completed)").font(.system(.title, design: .rounded, weight: .bold)).monospacedDigit()
+                Text("из \(total)").font(.caption).foregroundStyle(.white.opacity(0.8))
+            }
+        }.padding(5).accessibilityElement(children: .ignore).accessibilityLabel("Пройдено уроков: \(completed) из \(total)")
     }
 
     private func lessons(on date: Date) -> [Lesson] {
@@ -77,18 +117,18 @@ struct TodayView: View {
     private func activeLessonCard(_ lesson: Lesson) -> some View {
         Button { homeworkLesson = lesson } label: {
             HStack(spacing: 14) {
-                Image(systemName: "waveform.circle.fill").font(.title).symbolEffect(.pulse).foregroundStyle(.white)
+                Image(systemName: "square.and.pencil").font(.title).foregroundStyle(.white)
                 VStack(alignment: .leading, spacing: 3) { Text("Сейчас идёт урок").font(.caption.bold()).opacity(0.8); Text(lesson.title).font(.headline); Text("Можно уже записывать домашнее задание").font(.caption).opacity(0.8) }
                 Spacer(); Image(systemName: "square.and.pencil").font(.title3.bold())
-            }.padding(17).foregroundStyle(.white).background(LinearGradient(colors: [AppTheme.coral, AppTheme.violet], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 21))
+            }.padding(20).foregroundStyle(.white).background(AppTheme.deepViolet, in: RoundedRectangle(cornerRadius: 24))
         }.buttonStyle(ScalePressStyle())
     }
 
     private func heroMetric(_ value: String, _ title: String, _ symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) { Image(systemName: symbol).font(.caption2); Text(value).font(.subheadline.bold()).monospacedDigit() }
-            Text(title).font(.system(size: 10, weight: .semibold)).opacity(0.68)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).frame(height: 50)
+            Text(title).font(.caption).opacity(0.8)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
             .background(.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
     }
 
@@ -109,7 +149,7 @@ struct TodayView: View {
                 }
                 ProgressView(value: Double(completed), total: Double(max(1, total))).tint(completed == total ? AppTheme.mint : AppTheme.violet)
             }
-        }.animation(.spring(response: 0.45, dampingFraction: 0.82), value: completed)
+        }.animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: completed)
     }
 
     private func homeworkFocus(_ item: Homework) -> some View {

@@ -2,6 +2,15 @@ import Combine
 import FirebaseAuth
 import FirebaseFirestore
 import Foundation
+import Network
+
+struct QueuedStudyMessage: Codable, Identifiable {
+    var id = UUID().uuidString
+    let kind: StudyMessageKind
+    let text: String
+    let payload: String
+    var createdAt = Date()
+}
 
 enum StudyMessageKind: String, Codable, Sendable { case text, schedule, grades, analytics }
 
@@ -30,15 +39,35 @@ final class MessengerService: ObservableObject {
     @Published private(set) var isSending = false
     @Published private(set) var isReady = false
     @Published var errorMessage = ""
+    @Published private(set) var outbox: [QueuedStudyMessage] = []
+    @Published private(set) var isOnline = false
+    private let monitor = NWPathMonitor()
+    private var activeProfile: PublicStudentProfile?
+    private var activeSenderName = ""
+    private var queueKey: String?
+    init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isOnline = path.status == .satisfied
+                if self.isOnline, let profile = self.activeProfile {
+                    await self.listen(to: profile, senderName: self.activeSenderName)
+                }
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "uspevai.network"))
+    }
     private var listener: ListenerRegistration?
     private var session = UUID()
     private var database: Firestore? { FirebaseBootstrap.isConfigured ? Firestore.firestore() : nil }
     var currentUserID: String { FirebaseBootstrap.isConfigured ? Auth.auth().currentUser?.uid ?? "" : "" }
 
-    deinit { listener?.remove() }
+    deinit { listener?.remove(); monitor.cancel() }
 
     func listen(to profile: PublicStudentProfile, senderName: String) async {
         stop()
+        activeProfile = profile
+        activeSenderName = senderName
         let token = session
         errorMessage = ""
         isLoading = true
@@ -46,7 +75,14 @@ final class MessengerService: ObservableObject {
             _ = try await SocialConnection.userID()
             guard !profile.ownerID.isEmpty, profile.ownerID != currentUserID else { throw SocialConnection.ConnectionError.selfChat }
             guard let database else { throw SocialConnection.ConnectionError.missingConfiguration }
-            try await prepareChat(database: database, profile: profile, senderName: senderName)
+            let key = "outbox.\(currentUserID).\(profile.ownerID)"
+            if let data = UserDefaults.standard.data(forKey: key), (try? JSONDecoder().decode([QueuedStudyMessage].self, from: data)) == nil {
+                queueKey = nil
+                throw NSError(domain: "Uspevai.Outbox", code: 1, userInfo: [NSLocalizedDescriptionKey: "Не удалось прочитать очередь сообщений. Исходные данные сохранены; отправка остановлена, чтобы их не перезаписать."])
+            }
+            queueKey = key
+            outbox = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([QueuedStudyMessage].self, from: $0) } ?? []
+            if isOnline { try await prepareChat(database: database, profile: profile, senderName: senderName) }
         } catch {
             guard session == token else { return }
             isLoading = false; errorMessage = SocialConnection.errorText(error); return
@@ -63,9 +99,15 @@ final class MessengerService: ObservableObject {
                     self.messages = Array((snapshot?.documents ?? []).compactMap(Self.message).reversed())
                 }
             }
+        Task { await retryOutbox() }
     }
 
-    func stop() { session = UUID(); listener?.remove(); listener = nil; isReady = false; isLoading = false }
+    func stop() { session = UUID(); listener?.remove(); listener = nil; isReady = false; isLoading = false; activeProfile = nil }
+
+    func shareHomework(_ items: [Homework], to profile: PublicStudentProfile, senderName: String) async {
+        guard let data = try? JSONEncoder().encode(Array(items.filter { !$0.isDone }.prefix(50))), let payload = String(data: data, encoding: .utf8) else { return }
+        await send(kind: .text, text: "Мои задания", payload: payload, to: profile, senderName: senderName)
+    }
 
     func sendText(_ value: String, to profile: PublicStudentProfile, senderName: String) async -> Bool {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -93,21 +135,44 @@ final class MessengerService: ObservableObject {
 
     @discardableResult
     private func send(kind: StudyMessageKind, text: String, payload: String, to profile: PublicStudentProfile, senderName: String) async -> Bool {
-        guard !isSending else { return false }
-        guard let database, isReady, !currentUserID.isEmpty else { errorMessage = "Чат ещё не подключён. Нажмите «Повторить подключение»."; return false }
+        guard database != nil, queueKey != nil, !currentUserID.isEmpty else { errorMessage = "Для первой настройки чата нужен интернет. Текст остаётся в поле."; return false }
+        guard queueKey == "outbox.\(currentUserID).\(profile.ownerID)" else { errorMessage = "Аккаунт изменился. Подключи чат заново."; return false }
         guard text.utf8.count <= 2000, payload.utf8.count <= 80000 else { errorMessage = SocialConnection.ConnectionError.oversized.localizedDescription; return false }
+        guard outbox.count < 100 else { errorMessage = "В очереди уже 100 сообщений. Дождись отправки."; return false }
+        let queued = QueuedStudyMessage(kind: kind, text: text, payload: payload)
+        let updated = outbox + [queued]
+        guard let key = queueKey, let data = try? JSONEncoder().encode(updated) else { errorMessage = "Не удалось сохранить сообщение. Попробуй ещё раз."; return false }
+        UserDefaults.standard.set(data, forKey: key)
+        outbox = updated
+        Task { await retryOutbox() }
+        return true
+    }
+
+    func retryOutbox() async {
+        guard !isSending, isOnline, isReady, let database, let profile = activeProfile, let key = queueKey else { return }
         isSending = true
         defer { isSending = false }
         errorMessage = ""
         let id = chatID(with: profile.ownerID)
+        let senderID = currentUserID
         let chat = database.collection("chats").document(id)
-        do {
+        while let item = outbox.first, isOnline, queueKey == key {
+          do {
+            let reference = chat.collection("messages").document(item.id)
+            // A stable ID and server check prevent duplicates after a restart or lost acknowledgement.
+            let existing = try await reference.getDocument(source: .server)
+            guard queueKey == key, currentUserID == senderID else { return }
+            if !existing.exists {
             let batch = database.batch()
-            batch.setData(["senderID": currentUserID, "kind": kind.rawValue, "text": text, "payload": payload, "sentAt": FieldValue.serverTimestamp()], forDocument: chat.collection("messages").document())
-            batch.updateData(["updatedAt": FieldValue.serverTimestamp(), "lastMessage": String(text.prefix(120))], forDocument: chat)
+            batch.setData(["senderID": currentUserID, "kind": item.kind.rawValue, "text": item.text, "payload": item.payload, "sentAt": FieldValue.serverTimestamp()], forDocument: reference)
+            batch.updateData(["updatedAt": FieldValue.serverTimestamp(), "lastMessage": String(item.text.prefix(120))], forDocument: chat)
             try await batch.commit()
-            return true
-        } catch { errorMessage = SocialConnection.errorText(error); return false }
+            }
+            guard queueKey == key, currentUserID == senderID else { return }
+            outbox.removeAll { $0.id == item.id }
+            if let data = try? JSONEncoder().encode(outbox) { UserDefaults.standard.set(data, forKey: key) }
+          } catch { errorMessage = SocialConnection.errorText(error); return }
+        }
     }
 
     private func prepareChat(database: Firestore, profile: PublicStudentProfile, senderName: String) async throws {

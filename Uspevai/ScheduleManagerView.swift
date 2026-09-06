@@ -108,6 +108,7 @@ struct ScheduleManagerView: View {
 
     private func deleteLesson() {
         guard let lesson = lessonToDelete else { return }
+        store.archiveSchedule()
         store.lessons.removeAll { $0.id == lesson.id }
         lessonToDelete = nil
         renumberCurrentDay()

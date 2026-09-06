@@ -28,3 +28,27 @@ let legacy = """
 let legacyHomework = try JSONDecoder().decode(Homework.self, from: Data(legacy.utf8))
 assert(legacyHomework.createdAt == nil, "Legacy homework")
 print("Study statistics, streak, wallet record and legacy data checks passed.")
+
+let plannerEarly = Homework(lessonTitle: "Math", text: "First", dueDate: Date(timeIntervalSince1970: 1000))
+let plannerLater = Homework(lessonTitle: "Math", text: "Later", dueDate: Date(timeIntervalSince1970: 900000))
+assert(PlannerLogic.nextTask([plannerLater, plannerEarly], plans: [:])?.id == plannerEarly.id)
+var plannerDone = plannerEarly
+plannerDone.isDone = true
+assert(PlannerLogic.nextTask([plannerDone], plans: [:]) == nil)
+let plannerRequired = PlannerLogic.requiredGrade(grades: [Grade(subject: "Math", value: 6, weight: 2)], target: 8, count: 2, weight: 1)
+assert(plannerRequired == 10, "Weighted target calculation")
+assert(PlannerLogic.requiredGrade(grades: [], target: 8, count: 3, weight: 1) == 8)
+assert(PlannerLogic.requiredGrade(grades: [Grade(subject: "Math", value: 1)], target: 10, count: 1, weight: 1) > 10)
+let plannerLesson = Lesson(weekday: 2, order: 1, title: "Math", startsAt: "09:00", endsAt: "09:40")
+assert(PlannerLogic.validSchedule([plannerLesson]))
+assert(!PlannerLogic.validSchedule([plannerLesson, plannerLesson]), "Reject duplicate IDs")
+var plannerInvalid = plannerLesson
+plannerInvalid.endsAt = "08:00"
+assert(!PlannerLogic.validSchedule([plannerInvalid]))
+var plannerRecord = PlannerData()
+plannerRecord.plans[plannerEarly.id.uuidString] = TaskPlan(minutes: 35, important: true, steps: [TaskStep(title: "Read", done: true)])
+plannerRecord.trash = [TrashEntry(homework: plannerEarly, title: "Saved")]
+let plannerRestored = try JSONDecoder().decode(PlannerData.self, from: JSONEncoder().encode(plannerRecord))
+assert(plannerRestored.plans[plannerEarly.id.uuidString]?.steps.first?.done == true)
+assert(plannerRestored.trash.first?.homework?.id == plannerEarly.id)
+print("Planner ranking, weighted targets, schedule validation and persistence checks passed.")

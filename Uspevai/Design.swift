@@ -2,12 +2,18 @@ import SwiftUI
 
 enum AppTheme {
     static let violet = Color(red: 0.38, green: 0.24, blue: 0.96)
-    static let deepViolet = Color(red: 0.16, green: 0.08, blue: 0.45)
+    static let deepViolet = Color(red: 0.075, green: 0.09, blue: 0.23)
     static let coral = Color(red: 1.0, green: 0.38, blue: 0.39)
     static let mint = Color(red: 0.10, green: 0.76, blue: 0.61)
     static let cyan = Color(red: 0.12, green: 0.68, blue: 0.98)
     static let gold = Color(red: 1.0, green: 0.68, blue: 0.16)
-    static let background = Color(uiColor: .systemGroupedBackground)
+    static let background = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(red: 0.045, green: 0.055, blue: 0.10, alpha: 1) : UIColor(red: 0.955, green: 0.96, blue: 0.985, alpha: 1)
+    })
+    static let surface = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(red: 0.09, green: 0.105, blue: 0.17, alpha: 1) : .white
+    })
+    static let border = Color.primary.opacity(0.075)
     static let blue = Color(red: 0.10, green: 0.43, blue: 1.0)
     static let heroGradient = LinearGradient(colors: [deepViolet, violet, blue], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let actionGradient = LinearGradient(colors: [violet, blue], startPoint: .leading, endPoint: .trailing)
@@ -18,14 +24,8 @@ struct SoftCard<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         content.padding(18)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(LinearGradient(colors: [.white.opacity(0.16), AppTheme.violet.opacity(0.035), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .allowsHitTesting(false)
-            }
-            .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(LinearGradient(colors: [.white.opacity(0.34), .primary.opacity(0.07), AppTheme.violet.opacity(0.11)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1) }
-            .shadow(color: AppTheme.deepViolet.opacity(0.035), radius: 6, y: 3)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(AppTheme.border, lineWidth: 1).allowsHitTesting(false) }
     }
 }
 
@@ -33,9 +33,7 @@ struct AnimatedAppBackground: View {
     var body: some View {
         ZStack {
             AppTheme.background
-            LinearGradient(colors: [AppTheme.violet.opacity(0.10), .clear, AppTheme.cyan.opacity(0.06)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [AppTheme.violet.opacity(0.12), .clear], center: UnitPoint(x: 1.05, y: 0.04), startRadius: 0, endRadius: 240)
-            RadialGradient(colors: [AppTheme.cyan.opacity(0.09), .clear], center: UnitPoint(x: -0.08, y: 0.94), startRadius: 0, endRadius: 230)
+            LinearGradient(colors: [AppTheme.violet.opacity(0.055), .clear], startPoint: .topLeading, endPoint: .center)
         }.ignoresSafeArea()
     }
 }
@@ -48,15 +46,15 @@ struct SectionHeader: View {
     var body: some View {
         HStack(spacing: 11) {
             if let symbol {
-                Image(systemName: symbol).font(.subheadline.bold()).foregroundStyle(.white)
-                    .frame(width: 34, height: 34).background(AppTheme.actionGradient, in: RoundedRectangle(cornerRadius: 11))
+                Image(systemName: symbol).font(.subheadline.bold()).foregroundStyle(AppTheme.violet)
+                    .frame(width: 38, height: 38).background(AppTheme.violet.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.title3.bold())
                 if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
             }
             Spacer()
-        }.accessibilityElement(children: .combine)
+        }.accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
     }
 }
 

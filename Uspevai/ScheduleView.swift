@@ -22,6 +22,7 @@ struct ScheduleView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     dateHero
+                    weekPicker
                     if let override = store.override(on: selectedDate) { overrideBanner(override) }
                     if !dayLessons.isEmpty {
                         SectionHeader(title: "Уроки", subtitle: "\(dayLessons.count) · \(totalDurationText)", symbol: "clock.badge.checkmark.fill").padding(.top, 2)
@@ -69,16 +70,14 @@ struct ScheduleView: View {
 
     private var dateHero: some View {
         ZStack {
-            AppTheme.heroGradient
-            Circle().fill(.white.opacity(0.11)).frame(width: 150).offset(x: 125, y: -48)
-            Circle().fill(AppTheme.mint.opacity(0.20)).frame(width: 80).blur(radius: 2).offset(x: -145, y: 80)
+            OrbitBackdrop()
             VStack(spacing: 18) {
                 HStack {
-                    Button { moveDay(-1) } label: { Image(systemName: "chevron.left").frame(width: 42, height: 42).background(.white.opacity(0.14), in: Circle()) }
+                    Button { moveDay(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44).background(.white.opacity(0.14), in: Circle()) }.accessibilityLabel("Предыдущий день")
                     Spacer()
                     DatePicker("Дата", selection: $selectedDate, displayedComponents: .date).labelsHidden().datePickerStyle(.compact).tint(.white).colorScheme(.dark)
                     Spacer()
-                    Button { moveDay(1) } label: { Image(systemName: "chevron.right").frame(width: 42, height: 42).background(.white.opacity(0.14), in: Circle()) }
+                    Button { moveDay(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44).background(.white.opacity(0.14), in: Circle()) }.accessibilityLabel("Следующий день")
                 }
                 VStack(spacing: 5) {
                     Text(selectedDate.formatted(.dateTime.weekday(.wide))).font(.system(size: 28, weight: .heavy, design: .rounded))
@@ -86,9 +85,47 @@ struct ScheduleView: View {
                 }.contentTransition(.numericText()).id(Calendar.current.startOfDay(for: selectedDate))
             }.foregroundStyle(.white).padding(20)
         }
-        .frame(height: 168).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .shadow(color: AppTheme.violet.opacity(0.24), radius: 18, y: 9)
-        .animation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.82), value: selectedDate)
+        .fixedSize(horizontal: false, vertical: true).clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .buttonStyle(ScalePressStyle())
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: selectedDate)
+    }
+
+    private var weekPicker: some View {
+        let calendar = appCalendar
+        let weekday = calendar.component(.weekday, from: selectedDate)
+        let mondayOffset = (weekday + 5) % 7
+        let monday = calendar.date(byAdding: .day, value: -mondayOffset, to: calendar.startOfDay(for: selectedDate)) ?? selectedDate
+        return VStack(spacing: 12) {
+            HStack {
+                Text("Твоя неделя").font(.subheadline.bold())
+                Spacer()
+                Button("Сегодня") { selectedDate = .now }.font(.caption.bold()).frame(minHeight: 44)
+            }
+            ViewThatFits(in: .horizontal) {
+                weekDays(from: monday)
+                ScrollView(.horizontal, showsIndicators: false) { weekDays(from: monday) }
+            }
+        }
+    }
+
+    private func weekDays(from monday: Date) -> some View {
+        HStack(spacing: 6) {
+            ForEach(0..<7, id: \.self) { offset in
+                let date = appCalendar.date(byAdding: .day, value: offset, to: monday) ?? monday
+                let selected = appCalendar.isDate(date, inSameDayAs: selectedDate)
+                Button { selectedDate = date } label: {
+                    VStack(spacing: 8) {
+                        Text(date.formatted(.dateTime.weekday(.abbreviated))).font(.caption2)
+                        Text(date.formatted(.dateTime.day())).font(.subheadline.bold()).monospacedDigit()
+                        Circle().fill(appCalendar.isDateInToday(date) ? (selected ? Color.white : AppTheme.violet) : .clear).frame(width: 4, height: 4)
+                    }.frame(minWidth: 44, maxWidth: .infinity).padding(.vertical, 12)
+                        .foregroundStyle(selected ? Color.white : Color.primary)
+                        .background(selected ? AppTheme.violet : AppTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+                }.buttonStyle(ScalePressStyle())
+                    .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
     }
 
     private func lessonCard(_ lesson: Lesson, now: Date) -> some View {

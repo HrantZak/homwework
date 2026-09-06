@@ -100,7 +100,6 @@ struct ProfileView: View {
                             Text(achievement.title).font(store.activeFont(size: 11, relativeTo: .caption2).bold()).multilineTextAlignment(.center).lineLimit(2).frame(height: 30, alignment: .top)
                         }.frame(maxWidth: .infinity)
                     }
-                    if pinned.isEmpty { Text("Выполни первое задание — и здесь появится награда").font(store.activeFont(size: 15, relativeTo: .subheadline)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
                 }
             }
         }
@@ -147,17 +146,17 @@ struct ProfileView: View {
                         ProgressView(value: Double(min(metricValue(achievement.metric), achievement.target)), total: Double(achievement.target)).tint(unlocked ? rarityColor(achievement.rarity) : .gray)
                         Text(unlocked ? (store.pinnedAchievementIDs.contains(achievement.id) ? "Закреплено · нажми, чтобы снять" : "Получено · нажми, чтобы закрепить") : "\(metricValue(achievement.metric)) из \(achievement.target)").font(store.activeFont(size: 10, relativeTo: .caption2).bold()).foregroundStyle(unlocked ? rarityColor(achievement.rarity) : .secondary)
                     }.padding(14).frame(maxWidth: .infinity, minHeight: 166, alignment: .topLeading)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 21))
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 21))
                         .overlay { RoundedRectangle(cornerRadius: 21).stroke((unlocked ? rarityColor(achievement.rarity) : Color.primary).opacity(0.13)) }
                         .opacity(unlocked ? 1 : 0.72)
-                }.buttonStyle(ScalePressStyle()).disabled(!unlocked).revealOnAppear()
+                }.buttonStyle(ScalePressStyle()).disabled(!unlocked)
             }
         }
     }
 
     private func filterButton(_ title: String, rarity: AchievementRarity?) -> some View {
         Button { withAnimation(reduceMotion ? nil : .snappy) { selectedRarity = rarity } } label: {
-            Text(title).font(store.activeFont(size: 12, relativeTo: .caption).bold()).padding(.horizontal, 14).frame(height: 38)
+            Text(title).font(store.activeFont(size: 12, relativeTo: .caption).bold()).padding(.horizontal, 14).frame(minHeight: 44)
                 .foregroundStyle(selectedRarity == rarity ? .white : .primary).background(selectedRarity == rarity ? accent : Color.primary.opacity(0.07), in: Capsule())
         }.buttonStyle(ScalePressStyle())
     }

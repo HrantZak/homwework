@@ -17,8 +17,8 @@ struct ProgressRing: View {
                 .stroke(AngularGradient(colors: [color.opacity(0.55), color, color], center: .center, startAngle: .degrees(0), endAngle: .degrees(360)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }.frame(width: size, height: size)
-            .animation(reduceMotion ? nil : .spring(response: 0.9, dampingFraction: 0.85), value: appeared)
-            .animation(reduceMotion ? nil : .spring(response: 0.65, dampingFraction: 0.85), value: fraction)
+            .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.9), value: appeared)
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.9), value: fraction)
             .onAppear { appeared = true }
             .accessibilityHidden(true)
     }
@@ -47,7 +47,7 @@ struct OrbitMetric: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }.multilineTextAlignment(.center)
         }.frame(maxWidth: .infinity).padding(17)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26))
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 26))
             .overlay { RoundedRectangle(cornerRadius: 26).stroke(color.opacity(0.13), lineWidth: 1) }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(title): \(value). \(detail)")
@@ -74,12 +74,51 @@ struct RevealEffect: ViewModifier {
     func body(content: Content) -> some View {
         content.opacity(appeared ? 1 : 0)
             .offset(y: appeared || reduceMotion ? 0 : 12)
-            .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.4)) { appeared = true } }
+            .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { appeared = true } }
     }
 }
 
 extension View {
     func revealOnAppear() -> some View { modifier(RevealEffect()) }
+}
+
+/// Static action artwork; only the native button press animates.
+struct DashboardAction: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let color: Color
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: symbol).font(.title3.bold()).foregroundStyle(color)
+                .frame(width: 44, height: 44).background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.subheadline.bold()).foregroundStyle(.primary)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            }.fixedSize(horizontal: false, vertical: true)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 24))
+            .overlay { RoundedRectangle(cornerRadius: 24).strokeBorder(AppTheme.border) }
+            .contentShape(RoundedRectangle(cornerRadius: 24))
+    }
+}
+
+struct FocusSessionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    PremiumTitle(eyebrow: "Без спешки", title: "Одна задача за раз", icon: "timer")
+                    Text("Выбери время, убери отвлекающие вещи и начни. После сессии дай себе немного отдохнуть.")
+                        .foregroundStyle(.secondary)
+                    FocusTimerCard()
+                }.padding(24)
+            }.background { AnimatedAppBackground() }
+                .navigationTitle("Фокус").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+        }
+    }
 }
 
 struct GradeDonut: View {
